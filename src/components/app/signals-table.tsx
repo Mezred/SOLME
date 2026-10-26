@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge, ChainBadge, DemoBadge, EmptyState, PriceChange, RiskBadge, ScoreRing, SignalTypeBadge, StrengthBadge, TokenAvatar } from "@/components/ui";
 import type { SignalRow } from "@/lib/data/signals";
 import { formatAge, formatPrice, formatUsd, timeAgo } from "@/lib/format";
-import { SortHeader } from "./pagination";
+import { SortTh } from "./pagination";
 import type { SearchParamsRecord } from "./url";
 
 function Pressure({ buys, sells }: { buys: number | null; sells: number | null }) {
@@ -24,8 +24,7 @@ function Pressure({ buys, sells }: { buys: number | null; sells: number | null }
 export function SignalsTable({ rows, base, params, sortable = true, emptyText }: { rows: SignalRow[]; base: string; params: SearchParamsRecord; sortable?: boolean; emptyText?: string }) {
   if (rows.length === 0)
     return <EmptyState title={emptyText ?? "No signals match these filters"} body="Signals appear when live data meets a documented pattern with enough confidence. Try widening filters or check back after the next ingestion cycle." />;
-  const H = ({ field, label, align }: { field: string; label: string; align?: "left" | "right" }) =>
-    sortable ? <SortHeader base={base} params={params} field={field} label={label} align={align} /> : <th className={align === "right" ? "text-right" : undefined}>{label}</th>;
+  const s = { sortable, base, params };
   return (
     <div className="overflow-x-auto">
       <table className="table-terminal">
@@ -33,19 +32,19 @@ export function SignalsTable({ rows, base, params, sortable = true, emptyText }:
           <tr>
             <th>Token</th>
             <th>Signal</th>
-            <H field="score" label="AI score" />
-            <H field="confidence" label="Conf." align="right" />
+            <SortTh s={s} field="score" label="AI score" />
+            <SortTh s={s} field="confidence" label="Conf." align="right" />
             <th className="text-right">Price</th>
             <th className="text-right">5m</th>
-            <H field="change_h1" label="1h" align="right" />
-            <H field="change_h24" label="24h" align="right" />
-            <H field="liquidity" label="Liquidity" align="right" />
-            <H field="volume" label="Vol 24h" align="right" />
-            <H field="mcap" label="MCap" align="right" />
+            <SortTh s={s} field="change_h1" label="1h" align="right" />
+            <SortTh s={s} field="change_h24" label="24h" align="right" />
+            <SortTh s={s} field="liquidity" label="Liquidity" align="right" />
+            <SortTh s={s} field="volume" label="Vol 24h" align="right" />
+            <SortTh s={s} field="mcap" label="MCap" align="right" />
             <th>Flow 1h</th>
             <th>Security</th>
             <th className="text-right">Age</th>
-            <H field="created" label="Signal" align="right" />
+            <SortTh s={s} field="created" label="Signal" align="right" />
           </tr>
         </thead>
         <tbody>

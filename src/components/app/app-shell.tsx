@@ -19,14 +19,18 @@ interface ShellUser {
 export function AppShell({ user, unread, demoMode, children }: { user: ShellUser; unread: number; demoMode: boolean; children: ReactNode }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // The mobile drawer is open only for the path it was opened on, so navigating closes it.
+  const [openedAt, setOpenedAt] = useState<string | null>(null);
+  const mobileOpen = openedAt === path;
+  const setMobileOpen = (open: boolean) => setOpenedAt(open ? path : null);
 
   useEffect(() => {
     try {
+      // Read after hydration: localStorage is unavailable during server render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollapsed(localStorage.getItem("nx-sidebar") === "1");
     } catch {}
   }, []);
-  useEffect(() => setMobileOpen(false), [path]);
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -161,24 +165,24 @@ interface SearchHit {
 function TokenSearch() {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  const [open, setOpen] = useState(false);
+  const [results, setHits] = useState<SearchHit[]>([]);
+  const [isOpen, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchable = q.trim().length >= 2;
+  const hits = searchable ? results : [];
+  const open = isOpen && searchable;
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (q.trim().length < 2) {
-      setHits([]);
-      return;
-    }
+    if (!searchable) return;
     timer.current = setTimeout(async () => {
       const r = await apiFetch<{ results: SearchHit[] }>(`/api/tokens/search?q=${encodeURIComponent(q.trim())}`);
       setHits(r.data?.results ?? []);
       setActive(0);
       setOpen(true);
     }, 220);
-  }, [q]);
+  }, [q, searchable]);
 
   const go = (h: SearchHit) => {
     setOpen(false);

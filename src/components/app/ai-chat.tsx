@@ -52,7 +52,13 @@ export function AiChat({ configured, used, limit, initialPrompt }: { configured:
     setConvs(r.data?.conversations ?? []);
   };
   useEffect(() => {
-    void loadConvs();
+    let alive = true;
+    apiFetch<{ conversations: Conv[] }>("/api/ai/conversations").then((r) => {
+      if (alive) setConvs(r.data?.conversations ?? []);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
   useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
 

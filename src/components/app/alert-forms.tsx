@@ -47,7 +47,7 @@ export function NewAlertForm({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (q.trim().length < 2) return setHits([]);
+    if (q.trim().length < 2) return;
     const t = setTimeout(async () => {
       const r = await apiFetch<{ results: Hit[] }>(`/api/tokens/search?q=${encodeURIComponent(q.trim())}`);
       setHits(r.data?.results ?? []);
@@ -142,7 +142,7 @@ export function NewAlertForm({
           ) : (
             <div className="relative max-w-md">
               <input className="input" aria-label="Search token" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tracked tokens" />
-              {hits.length > 0 && (
+              {q.trim().length >= 2 && hits.length > 0 && (
                 <ul className="card absolute left-0 right-0 z-10 mt-1 max-h-56 overflow-auto p-1">
                   {hits.map((h) => (
                     <li key={h.id}><button type="button" onClick={() => { setToken(h); setHits([]); setQ(""); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-ink-750"><TokenAvatar symbol={h.symbol} logo={h.logo_url} size={20} />{h.symbol}<span className="ml-auto"><ChainBadge chain={h.chain} /></span></button></li>

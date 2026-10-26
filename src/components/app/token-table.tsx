@@ -2,33 +2,32 @@ import Link from "next/link";
 import { ChainBadge, DemoBadge, EmptyState, PriceChange, RiskBadge, ScoreRing, TokenAvatar } from "@/components/ui";
 import type { TokenRow } from "@/lib/data/tokens";
 import { formatAge, formatCompact, formatPrice, formatUsd } from "@/lib/format";
-import { SortHeader } from "./pagination";
+import { SortTh } from "./pagination";
 import type { SearchParamsRecord } from "./url";
 
 export function TokenTable({ rows, base, params, sortable = true, showAccel = false, emptyText }: { rows: TokenRow[]; base: string; params: SearchParamsRecord; sortable?: boolean; showAccel?: boolean; emptyText?: string }) {
   if (rows.length === 0) return <EmptyState title={emptyText ?? "No tokens match"} body="Tokens appear after the ingestion engine has snapshotted them. Adjust filters or wait for the next cycle." />;
-  const H = ({ field, label, align }: { field: string; label: string; align?: "left" | "right" }) =>
-    sortable ? <SortHeader base={base} params={params} field={field} label={label} align={align} /> : <th className={align === "right" ? "text-right" : undefined}>{label}</th>;
+  const s = { sortable, base, params };
   return (
     <div className="overflow-x-auto">
       <table className="table-terminal">
         <thead>
           <tr>
             <th>Token</th>
-            <H field="score" label="Score" />
+            <SortTh s={s} field="score" label="Score" />
             <th className="text-right">Price</th>
             <th className="text-right">5m</th>
-            <H field="change_h1" label="1h" align="right" />
+            <SortTh s={s} field="change_h1" label="1h" align="right" />
             <th className="text-right">6h</th>
-            <H field="change_h24" label="24h" align="right" />
-            <H field="liquidity" label="Liquidity" align="right" />
-            <H field="volume" label="Vol 24h" align="right" />
-            {showAccel && <H field="volume_accel" label="Vol accel" align="right" />}
-            <H field="mcap" label="MCap/FDV" align="right" />
+            <SortTh s={s} field="change_h24" label="24h" align="right" />
+            <SortTh s={s} field="liquidity" label="Liquidity" align="right" />
+            <SortTh s={s} field="volume" label="Vol 24h" align="right" />
+            {showAccel && <SortTh s={s} field="volume_accel" label="Vol accel" align="right" />}
+            <SortTh s={s} field="mcap" label="MCap/FDV" align="right" />
             <th className="text-right">Txns 24h</th>
             <th className="text-right">Holders</th>
             <th>Security</th>
-            <H field="age" label="Age" align="right" />
+            <SortTh s={s} field="age" label="Age" align="right" />
           </tr>
         </thead>
         <tbody>

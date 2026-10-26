@@ -34,7 +34,7 @@ export function AddPositionForm({ portfolioId, preset }: { portfolioId: string; 
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   useEffect(() => {
-    if (q.trim().length < 2) return setHits([]);
+    if (q.trim().length < 2) return;
     const t = setTimeout(async () => {
       const r = await apiFetch<{ results: Hit[] }>(`/api/tokens/search?q=${encodeURIComponent(q.trim())}`);
       setHits(r.data?.results ?? []);
@@ -87,7 +87,7 @@ export function AddPositionForm({ portfolioId, preset }: { portfolioId: string; 
             <div className="relative">
               <label htmlFor="pos-token" className="label">Token</label>
               <input id="pos-token" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tracked tokens or paste an address" autoComplete="off" />
-              {hits.length > 0 && (
+              {q.trim().length >= 2 && hits.length > 0 && (
                 <ul className="card absolute left-0 right-0 z-10 mt-1 max-h-56 overflow-auto p-1">
                   {hits.map((h) => (
                     <li key={h.id}>

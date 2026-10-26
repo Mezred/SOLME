@@ -33,6 +33,12 @@ export function Pagination({ base, params, page, pageSize, total }: { base: stri
   );
 }
 
+/** Header cell that is sortable when `s.sortable`, otherwise a plain <th>. */
+export function SortTh({ s, field, label, align }: { s: { sortable: boolean; base: string; params: SearchParamsRecord }; field: string; label: string; align?: "left" | "right" }) {
+  if (!s.sortable) return <th className={align === "right" ? "text-right" : undefined}>{label}</th>;
+  return <SortHeader base={s.base} params={s.params} field={field} label={label} align={align} />;
+}
+
 export function SortHeader({ base, params, field, label, align = "left" }: { base: string; params: SearchParamsRecord; field: string; label: string; align?: "left" | "right" }) {
   const active = params.sort === field;
   const dir = active && params.dir !== "asc" ? "asc" : "desc";
