@@ -114,6 +114,9 @@ export function getDb(): Promise<Database> {
   if (g.__nexalphaDbOverride) return Promise.resolve(g.__nexalphaDbOverride);
   if (!g.__nexalphaDb) {
     g.__nexalphaDb = (async () => {
+      if (env.isProd && !env.databaseUrl && process.env.ALLOW_PGLITE_IN_PRODUCTION !== "true" && process.env.NEXT_PHASE !== "phase-production-build") {
+        throw new Error("DATABASE_URL is required in production (embedded PGlite is for development; set ALLOW_PGLITE_IN_PRODUCTION=true only for single-instance hosts with a persistent disk).");
+      }
       const db = env.databaseUrl ? await createPg(env.databaseUrl) : await createPglite(env.pgliteDir);
       const { migrate } = await import("./migrate");
       await migrate(db);

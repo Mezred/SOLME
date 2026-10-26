@@ -17,7 +17,7 @@ const STAGES = [
 
 export default function HowItWorksPage() {
   return (
-    <Section eyebrow="Pipeline" title="How NEXALPHA works" intro="An honest pipeline: real provider data in, documented rules applied, evidence shown at every step.">
+    <Section as="h1" eyebrow="Pipeline" title="How NEXALPHA works" intro="An honest pipeline: real provider data in, documented rules applied, evidence shown at every step.">
       <ol className="relative space-y-4 border-l border-line pl-6">
         {STAGES.map((s) => (
           <li key={s.t} className="card p-5">

@@ -11,7 +11,7 @@ export default async function MethodologyPage() {
   const s = await getSetting("scoring");
   const total = Object.values(s.weights).reduce((a, b) => a + b, 0) || 1;
   return (
-    <Section eyebrow={`Scoring ${s.version || SCORING_VERSION}`} title="Scoring methodology" intro="NEXALPHA scores are deterministic and reproducible. This page renders the live configuration used by the engine.">
+    <Section as="h1" eyebrow={`Scoring ${s.version || SCORING_VERSION}`} title="Scoring methodology" intro="NEXALPHA scores are deterministic and reproducible. This page renders the live configuration used by the engine.">
       <div className="space-y-8">
         <Card className="overflow-x-auto">
           <table className="table-terminal">

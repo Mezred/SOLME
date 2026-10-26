@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "FAQ" };
 
 export default function FaqPage() {
   return (
-    <Section eyebrow="FAQ" title="Frequently asked questions">
+    <Section as="h1" eyebrow="FAQ" title="Frequently asked questions">
       <div className="max-w-3xl space-y-3">
         {FAQ.map((f) => (
           <details key={f.q} className="card group p-4">

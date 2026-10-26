@@ -1,0 +1,57 @@
+# Deployment & operations
+
+## Recommended topology
+
+| Component | Recommended | Notes |
+|---|---|---|
+| Web app | Vercel (or any Node 20.9+ host: Railway, Render, Fly.io, a VM) | `npm run build && npm start` |
+| Database | Managed PostgreSQL 15+ (Neon, Supabase, RDS, Railway) | Must permit `CREATE ROLE` + `GRANT` (used for row-level security). Enable automated backups/PITR. |
+| Background worker | A long-running process: `npm run worker` (Railway/Render/Fly worker) | Preferred. Alternatively Vercel Cron → `/api/cron/tick` every 1–2 min. |
+| Email | Resend | Verify your sending domain (SPF/DKIM). |
+| Payments | Stripe | Products + monthly/annual Prices for Pro and Elite. |
+
+PGlite (embedded DB) is for local development only; production refuses to start without `DATABASE_URL` (override with `ALLOW_PGLITE_IN_PRODUCTION=true` only on a single instance with a persistent disk).
+
+## Step by step
+
+1. **Database**: create a Postgres database and set `DATABASE_URL` (include `sslmode=require` for hosted providers). Run `npm run db:migrate` (or let the first request migrate). Confirm `schema_migrations` lists `0001_init`, `0002_rls`, `0003_default_config`.
+2. **Environment**: set variables from `.env.example` in your host's secret manager. Required: `APP_URL`, `DATABASE_URL`, `CRON_SECRET`, `BOOTSTRAP_ADMIN_EMAIL`. Set `WORKER_IN_PROCESS=false` on serverless hosts.
+3. **Deploy the web app**: Vercel → import the repo, framework "Next.js", build command `npm run build`. `vercel.json` registers a cron for `/api/cron/tick` every 2 minutes (Vercel sends `CRON_SECRET` automatically; per-minute crons need a paid Vercel plan). The tick route has `maxDuration = 300`.
+4. **Deploy the worker** (preferred over cron): same repo and env vars, start command `npm run worker`. Multiple workers are safe (SKIP LOCKED + dedup keys). If you run the worker, you may remove the Vercel cron.
+5. **Admin account**: sign up with `BOOTSTRAP_ADMIN_EMAIL`; verify the email.
+6. **Stripe**: create products/prices; paste Price IDs in Admin → Pricing. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` with events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, `customer.subscription.resumed`, `invoice.paid`, `invoice.payment_failed`. Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Enable the Customer Portal (plan switching, cancellation, payment methods). Test with `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and test cards before going live.
+7. **Email**: set `RESEND_API_KEY` and `EMAIL_FROM` on a verified domain.
+8. **Optional**: `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `HELIUS_API_KEY`, `ALCHEMY_API_KEY`, `GOPLUS_APP_KEY/SECRET`.
+9. **Domain & HTTPS**: add your domain in the host; HTTPS is automatic on Vercel/Render/Railway. Session cookies are `Secure` in production.
+
+## Production smoke test
+
+```bash
+curl -s https://<domain>/api/health            # status ok, db driver pg, marketDataAgeSeconds < 600 after first cycle
+E2E_BASE_URL=https://<staging-domain> npm run test:e2e   # run against staging, not production (it creates accounts)
+```
+
+Then: sign up → verify email → open Live Signals → add a watchlist token → create an alert → (staging) buy Pro with a Stripe test card → confirm the plan flips only after the webhook → cancel → confirm `cancel_at_period_end`.
+
+## Monitoring
+
+- `GET /api/health` for uptime checks (alert if non-200 or `marketDataAgeSeconds` > 900).
+- Admin → API providers (status, latency, last error), Errors & jobs, Alert delivery, AI usage & cost, Security & audit log.
+- Logs are JSON on stdout (ship to your log drain); warn/error are also persisted to `app_logs` (30-day retention).
+- `instrumentation.ts#onRequestError` logs unhandled server errors with their digest.
+
+## Backups & data retention
+
+Use your provider's automated backups/PITR. The worker prunes market snapshots after `snapshot_retention_days` (Admin → Data refresh), finished jobs after 2 days, logs after 30 days, expired sessions after 7 days.
+
+## Scaling notes
+
+- Web instances are stateless; rate limits and the job queue live in Postgres.
+- Provider calls are centralized in the worker; adding users does not add provider traffic (except on-demand address lookups, AI and candle requests, which are cached and rate-limited).
+- For large datasets add a "latest snapshot per token" materialized table if screener queries slow down (currently a LATERAL join on an indexed column).
+
+## Launch checklist (non-technical)
+
+- Have counsel review Terms, Privacy Policy and Risk Disclaimer for each launch jurisdiction (financial-promotion rules, consumer law, GDPR/CCPA, tax/VAT on subscriptions via Stripe Tax).
+- Confirm provider terms allow commercial redistribution of their data at your scale (DexScreener, GeckoTerminal/CoinGecko, GoPlus) or upgrade to paid tiers.
+- Decide refund policy and support SLAs.

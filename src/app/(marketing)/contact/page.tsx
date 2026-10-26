@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Contact & support" };
 
 export default function ContactPage() {
   return (
-    <Section eyebrow="Support" title="Contact & support" intro="Questions about your account, billing, data or a signal? Send us a message.">
+    <Section as="h1" eyebrow="Support" title="Contact & support" intro="Questions about your account, billing, data or a signal? Send us a message.">
       <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
         <ContactForm />
         <div className="space-y-4 text-sm text-fg-muted">

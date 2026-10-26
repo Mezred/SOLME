@@ -68,7 +68,7 @@ export function LoginForm() {
 
   return (
     <Shell title="Log in" subtitle="Welcome back to the terminal." footer={<>New to NEXALPHA? <Link href="/signup" className="text-up hover:underline">Create an account</Link></>}>
-      <form onSubmit={submit} className="space-y-4" noValidate>
+      <form method="post" onSubmit={submit} className="space-y-4" noValidate>
         <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
         <Field id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
         <div className="flex justify-end">
@@ -127,7 +127,7 @@ export function SignupForm() {
 
   return (
     <Shell title="Create your account" subtitle="Free plan — no card required." footer={<>Already have an account? <Link href="/login" className="text-up hover:underline">Log in</Link></>}>
-      <form onSubmit={submit} className="space-y-4" noValidate>
+      <form method="post" onSubmit={submit} className="space-y-4" noValidate>
         <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
         <Field id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 10 characters. A passphrase works well." />
         <label className="flex items-start gap-2 text-sm text-fg-muted">
@@ -176,7 +176,7 @@ export function ForgotForm() {
           )}
         </div>
       ) : (
-        <form onSubmit={submit} className="space-y-4" noValidate>
+        <form method="post" onSubmit={submit} className="space-y-4" noValidate>
           <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
           <ErrorText error={error} />
           <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
@@ -222,7 +222,7 @@ export function ResetForm() {
 
   return (
     <Shell title="Choose a new password" subtitle="All other sessions will be signed out.">
-      <form onSubmit={submit} className="space-y-4" noValidate>
+      <form method="post" onSubmit={submit} className="space-y-4" noValidate>
         <Field id="password" label="New password" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 10 characters." />
         <Field id="confirm" label="Confirm password" type="password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
         <ErrorText error={error} />

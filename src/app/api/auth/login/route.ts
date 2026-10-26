@@ -3,6 +3,7 @@ import { audit } from "@/lib/audit";
 import { findUserByEmail } from "@/lib/auth/accounts";
 import { getDummyHash, verifyPassword } from "@/lib/auth/password";
 import { clientIp, createSession } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import { api, ApiError, enforceRateLimit, ok, parseBody } from "@/lib/http";
 
 const schema = z.object({
@@ -12,7 +13,7 @@ const schema = z.object({
 
 export const POST = api(async (req) => {
   const ip = (await clientIp()) ?? "unknown";
-  await enforceRateLimit(`login:ip:${ip}`, 20, 900);
+  await enforceRateLimit(`login:ip:${ip}`, env.isProd ? 20 : 500, 900);
   const { email, password } = await parseBody(req, schema);
   await enforceRateLimit(`login:email:${email}`, 8, 900);
 

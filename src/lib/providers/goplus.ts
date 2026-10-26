@@ -7,8 +7,8 @@ import type { SecurityCheck, SecurityProvider, SecurityReport } from "./types";
 /**
  * GoPlus Security token API. Docs: https://docs.gopluslabs.io/reference/api-overview
  * Works without a key at a low rate; GOPLUS_APP_KEY/SECRET raise limits.
- * Observed behaviour (verified Oct 2026): EVM accepts comma-separated batches; the Solana endpoint
- * returns only the first address of a batch, so Solana is queried one token at a time.
+ * Observed behaviour (verified Oct 2026): both the EVM and Solana endpoints accept comma-separated
+ * addresses but return a result only for the FIRST one, so every token is queried individually.
  * Empty-string fields (e.g. buy_tax before a token is tradable) mean "not determined", not zero.
  */
 const gp = new ProviderClient("goplus", "https://api.gopluslabs.io/api/v1", { perMinute: 25, burst: 5 });
@@ -195,28 +195,14 @@ export const goplus: SecurityProvider = {
     const out = new Map<string, SecurityReport>();
     const headers = await authHeaders().catch(() => ({}));
     const exclude = context.excludeHolders ?? [];
-    if (CHAINS[chain].kind === "solana") {
-      for (const a of addresses) {
-        const res = await gp.get<{ code: number; result?: Record<string, Raw> }>(
-          `/solana/token_security?contract_addresses=${a}`,
-          { cacheSeconds: 600, headers },
-        );
-        const r = res.result?.[a];
-        out.set(a, r ? normalizeSolana(r, exclude) : unavailableReport("Provider returned no data for this token."));
-      }
-      return out;
-    }
-    for (let i = 0; i < addresses.length; i += 20) {
-      const batch = addresses.slice(i, i + 20);
-      const res = await gp.get<{ code: number; result?: Record<string, Raw> }>(
-        `/token_security/${CHAINS[chain].goplusId}?contract_addresses=${batch.join(",")}`,
-        { cacheSeconds: 600, headers },
-      );
-      const byLower = new Map(Object.entries(res.result ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
-      for (const a of batch) {
-        const r = byLower.get(a.toLowerCase());
-        out.set(a, r ? normalizeEvm(r, exclude) : unavailableReport("Provider returned no data for this token."));
-      }
+    const solana = CHAINS[chain].kind === "solana";
+    for (const a of addresses) {
+      const path = solana ? `/solana/token_security?contract_addresses=${a}` : `/token_security/${CHAINS[chain].goplusId}?contract_addresses=${a}`;
+      const res = await gp.get<{ code: number; message?: string; result?: Record<string, Raw> }>(path, { cacheSeconds: 600, headers });
+      // A non-OK code is a provider error, not "no data": skip so the token is retried next cycle.
+      if (res.code !== 1) continue;
+      const r = Object.entries(res.result ?? {}).find(([k]) => (solana ? k === a : k.toLowerCase() === a.toLowerCase()))?.[1];
+      out.set(a, r ? (solana ? normalizeSolana(r, exclude) : normalizeEvm(r, exclude)) : unavailableReport("Provider returned no data for this token."));
     }
     return out;
   },

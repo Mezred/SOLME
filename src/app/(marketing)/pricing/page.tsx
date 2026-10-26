@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function PricingPage() {
   const plans = await getPricingPlans();
   return (
-    <Section eyebrow="Pricing" title="Simple plans. Cancel anytime." intro="Start free on Solana and Base. Upgrade for every chain, real-time signals, deep AI analysis, custom alerts and wallet intelligence. Prices in USD; taxes may apply.">
+    <Section as="h1" eyebrow="Pricing" title="Simple plans. Cancel anytime." intro="Start free on Solana and Base. Upgrade for every chain, real-time signals, deep AI analysis, custom alerts and wallet intelligence. Prices in USD; taxes may apply.">
       <PricingCards plans={plans} />
       <div className="mt-12 grid gap-6 text-sm text-fg-muted md:grid-cols-3">
         <div><h3 className="mb-1 font-semibold text-fg">How billing works</h3><p>Payments are processed by Stripe. Plans activate only after Stripe confirms payment; your card details never touch our servers.</p></div>

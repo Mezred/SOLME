@@ -51,7 +51,7 @@ export default function FeaturesPage() {
   return (
     <>
       {GROUPS.map((g, i) => (
-        <Section key={g.title} eyebrow={`0${i + 1}`} title={g.title} intro={g.intro} className={i ? "border-t border-line" : ""}>
+        <Section key={g.title} as={i === 0 ? "h1" : "h2"} eyebrow={`0${i + 1}`} title={g.title} intro={g.intro} className={i ? "border-t border-line" : ""}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {g.items.map(([icon, title, desc, tone]) => <FeatureCard key={title} icon={Icons[icon]} title={title} tone={tone}>{desc}</FeatureCard>)}
           </div>

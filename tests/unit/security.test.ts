@@ -1,5 +1,30 @@
-import { describe, expect, it } from "vitest";
-import { normalizeEvm, normalizeSolana, unavailableReport } from "@/lib/providers/goplus";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { goplus, normalizeEvm, normalizeSolana, unavailableReport } from "@/lib/providers/goplus";
+
+describe("goplus.check request strategy (live regression)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("queries each token individually because batches only answer for the first address", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      const first = new URL(url).searchParams.get("contract_addresses")!.split(",")[0];
+      return new Response(JSON.stringify({ code: 1, message: "OK", result: { [first]: { is_honeypot: "0", is_open_source: "1", buy_tax: "0", sell_tax: "0" } } }), { status: 200 });
+    });
+    const a = "0x00000000000000000000000000000000000000a1";
+    const b = "0x00000000000000000000000000000000000000b2";
+    const out = await goplus.check("base", [a, b]);
+    expect(urls).toHaveLength(2);
+    expect(out.get(a)!.status).not.toBe("unavailable");
+    expect(out.get(b)!.status).not.toBe("unavailable");
+  });
+
+  it("skips (rather than storing 'unavailable') when the provider returns an error code", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ code: 4029, message: "rate limited" }), { status: 200 }));
+    const out = await goplus.check("ethereum", ["0x00000000000000000000000000000000000000c3"]);
+    expect(out.size).toBe(0);
+  });
+});
 
 describe("GoPlus EVM normalization", () => {
   it("treats empty tax fields as unavailable, not zero", () => {

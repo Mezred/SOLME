@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAccount, findUserByEmail, sendVerification } from "@/lib/auth/accounts";
 import { passwordProblems } from "@/lib/auth/password";
 import { clientIp, createSession } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import { api, ApiError, badRequest, enforceRateLimit, ok, parseBody } from "@/lib/http";
 
 const schema = z.object({
@@ -12,7 +13,8 @@ const schema = z.object({
 
 export const POST = api(async (req) => {
   const ip = (await clientIp()) ?? "unknown";
-  await enforceRateLimit(`signup:ip:${ip}`, 5, 600);
+  // Strict in production; relaxed in development/test so automated suites can create accounts.
+  await enforceRateLimit(`signup:ip:${ip}`, env.isProd ? 5 : 200, 600);
   const body = await parseBody(req, schema);
   const problem = passwordProblems(body.password, body.email);
   if (problem) throw badRequest(problem);

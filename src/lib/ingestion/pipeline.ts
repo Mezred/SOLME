@@ -27,6 +27,9 @@ export interface CycleStats {
   regime?: Record<string, number | null>;
 }
 
+/** GoPlus answers one token per request at ~25 req/min, so checks are bounded per chain per cycle. */
+const SECURITY_PER_CYCLE = 15;
+
 const PRIORITY: Record<string, number> = { watchlist: 0, active_signal: 1, trending: 2, new_pool: 3, profile: 4, boosted: 5 };
 
 /** Upserts token, pair and a fresh snapshot. Returns ids. */
@@ -253,13 +256,16 @@ export async function runIngestionCycle(): Promise<CycleStats> {
       }
     }
 
-    // Security: refresh only when older than the TTL, and only for non-spam tokens with tradable liquidity.
+    // Security: refresh only when older than the TTL (1h for "unavailable" results), only for non-spam tokens
+    // with tradable liquidity, and at most SECURITY_PER_CYCLE per chain — the rest carry over to the next cycle.
     const needSecurity: typeof stored = [];
     for (const s of stored) {
       if (s.spam || (s.p.liquidityUsd ?? 0) < scoring.thresholds.min_liquidity_usd) continue;
       const last = await latestSecurity(s.tokenId);
-      if (!last || now.getTime() - new Date(last.checked_at).getTime() > settings.security_ttl_hours * 3_600_000) needSecurity.push(s);
+      const ttlMs = last?.status === "unavailable" ? 3_600_000 : settings.security_ttl_hours * 3_600_000;
+      if (!last || now.getTime() - new Date(last.checked_at).getTime() > ttlMs) needSecurity.push(s);
     }
+    needSecurity.sort((a, b) => (b.p.liquidityUsd ?? 0) - (a.p.liquidityUsd ?? 0)).splice(SECURITY_PER_CYCLE);
     if (needSecurity.length) {
       try {
         const reports = await goplus.check(chain, needSecurity.map((s) => s.p.tokenAddress), {

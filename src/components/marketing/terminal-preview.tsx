@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge, ChainBadge, cx, PriceChange, ScoreRing, SignalTypeBadge, TokenAvatar } from "@/components/ui";
-import { formatPrice, formatUsd, timeAgo } from "@/lib/format";
+import { RelTime } from "@/components/rel-time";
+import { formatPrice, formatUsd } from "@/lib/format";
 
 export interface PreviewRow {
   id: string;
@@ -65,7 +66,7 @@ export function TerminalPreview({ rows, live }: { rows: PreviewRow[]; live: bool
           </button>
         ))}
       </div>
-      <div className="grid md:grid-cols-[1fr_260px]">
+      <div className="grid md:grid-cols-[1fr_220px]">
         <div className="overflow-x-auto">
           <table className="table-terminal">
             <thead>
@@ -74,7 +75,7 @@ export function TerminalPreview({ rows, live }: { rows: PreviewRow[]; live: bool
                 <th>Signal</th>
                 <th className="text-right">Score</th>
                 <th className="text-right">1h</th>
-                <th className="hidden text-right sm:table-cell">Liquidity</th>
+                <th className="hidden text-right 2xl:table-cell">Liquidity</th>
               </tr>
             </thead>
             <tbody>
@@ -101,7 +102,7 @@ export function TerminalPreview({ rows, live }: { rows: PreviewRow[]; live: bool
                   <td className="text-right">
                     <PriceChange value={r.h1} />
                   </td>
-                  <td className="num hidden text-right text-fg-muted sm:table-cell">{formatUsd(r.liquidity)}</td>
+                  <td className="num hidden text-right text-fg-muted 2xl:table-cell">{formatUsd(r.liquidity)}</td>
                 </tr>
               ))}
             </tbody>
@@ -113,7 +114,7 @@ export function TerminalPreview({ rows, live }: { rows: PreviewRow[]; live: bool
               <ScoreRing score={active.score} size={46} />
               <div>
                 <div className="font-semibold">{active.symbol}</div>
-                <div className="text-xs text-fg-faint">{timeAgo(active.createdAt)}</div>
+                <div className="text-xs text-fg-faint"><RelTime at={active.createdAt} /></div>
               </div>
             </div>
             <dl className="mt-4 space-y-2 text-xs">

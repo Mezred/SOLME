@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import { CHAINS, CHAIN_IDS } from "@/lib/chains";
 import { cx } from "@/components/ui";
 
-export function Section({ id, eyebrow, title, intro, children, className = "" }: { id?: string; eyebrow?: string; title: ReactNode; intro?: ReactNode; children?: ReactNode; className?: string }) {
+export function Section({ id, eyebrow, title, intro, children, className = "", as: Heading = "h2" }: { id?: string; eyebrow?: string; title: ReactNode; intro?: ReactNode; children?: ReactNode; className?: string; as?: "h1" | "h2" }) {
   return (
     <section id={id} className={cx("mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-20", className)}>
       {eyebrow && <p className="num text-xs font-medium uppercase tracking-[0.18em] text-up">{eyebrow}</p>}
-      <h2 className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
+      <Heading className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight sm:text-3xl">{title}</Heading>
       {intro && <p className="mt-3 max-w-2xl text-fg-muted">{intro}</p>}
       {children && <div className="mt-10">{children}</div>}
     </section>
