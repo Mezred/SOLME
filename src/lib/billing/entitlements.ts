@@ -67,6 +67,13 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
   };
 }
 
+/** Entitlements for anonymous visitors (marketing previews): identical to the Free plan. */
+export async function anonymousEntitlements(): Promise<Entitlements> {
+  const plan = await getPlan("free");
+  if (!plan) throw new Error("Free plan is missing from subscription_plans");
+  return { planId: plan.id, planName: plan.name, features: plan.features, subscription: null, inGracePeriod: false };
+}
+
 export function assertFeature(ent: Entitlements, feature: keyof PlanFeatures, label: string) {
   if (!ent.features[feature]) throw upgradeRequired(`${label} is not included in the ${ent.planName} plan.`);
 }

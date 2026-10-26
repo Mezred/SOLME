@@ -23,6 +23,8 @@ export interface CycleStats {
   scored: number;
   signalsCreated: number;
   errors: string[];
+  /** 24h change of each chain's wrapped native asset (market-regime context). */
+  regime?: Record<string, number | null>;
 }
 
 const PRIORITY: Record<string, number> = { watchlist: 0, active_signal: 1, trending: 2, new_pool: 3, profile: 4, boosted: 5 };
@@ -221,6 +223,7 @@ export async function runIngestionCycle(): Promise<CycleStats> {
   stats.candidates = candidates.length;
 
   const regime = await nativeRegime(chains);
+  stats.regime = Object.fromEntries(regime);
   const now = new Date();
 
   for (const chain of chains) {

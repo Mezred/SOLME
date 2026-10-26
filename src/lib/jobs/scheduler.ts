@@ -1,4 +1,5 @@
 import { deliverNotifications, evaluateAlerts } from "@/lib/alerts/engine";
+import { queryOne } from "@/lib/db";
 import { env } from "@/lib/env";
 import { pruneOldData, runIngestionCycle, trackSignalOutcomes } from "@/lib/ingestion/pipeline";
 import { errorMessage, logger } from "@/lib/log";
@@ -13,7 +14,13 @@ const log = logger("scheduler");
 export const handlers: Record<string, JobHandler> = {
   "ingest.cycle": async () => {
     if (env.demoMode) await ensureDemoData();
-    else await runIngestionCycle();
+    else {
+      // A slow cycle can overlap the next slot; skip if one just finished.
+      const last = await queryOne<{ value: { finishedAt?: string } }>("SELECT value FROM app_settings WHERE key = 'ingestion_status'");
+      const finished = last?.value.finishedAt ? Date.now() - new Date(last.value.finishedAt).getTime() : Infinity;
+      if (finished < 45_000) return;
+      await runIngestionCycle();
+    }
     await evaluateAlerts();
   },
   "signals.track": async () => {

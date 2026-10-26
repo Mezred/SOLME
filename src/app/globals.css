@@ -1,26 +1,167 @@
 @import "tailwindcss";
 
+/* NEXALPHA design tokens — dark trading-terminal palette. */
+@theme {
+  --color-ink-950: #04060b;
+  --color-ink-900: #070a12;
+  --color-ink-850: #0a0e18;
+  --color-ink-800: #0d121e;
+  --color-ink-750: #111726;
+  --color-ink-700: #161d2f;
+  --color-line: #1c2436;
+  --color-line-strong: #2a3550;
+
+  --color-fg: #e7eaf3;
+  --color-fg-muted: #9098ad;
+  --color-fg-faint: #5d667c;
+
+  --color-up: #1fe08a;
+  --color-up-dim: #0f5c3c;
+  --color-down: #ff4d5e;
+  --color-down-dim: #5e1d27;
+  --color-warn: #f4b544;
+  --color-warn-dim: #5a4114;
+  --color-ai: #8f7cff;
+  --color-ai-dim: #2e2763;
+  --color-info: #4d8dff;
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.25s ease-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: var(--color-ink-950);
+  color: var(--color-fg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "tnum";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-up) 30%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@layer components {
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .card {
+    background: var(--color-ink-850);
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, color-mix(in srgb, var(--color-line) 55%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in srgb, var(--color-line) 55%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .table-terminal {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .table-terminal th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-ink-800);
+    color: var(--color-fg-faint);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+  }
+  .table-terminal td {
+    padding: 8px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .table-terminal tbody tr:hover td {
+    background: color-mix(in srgb, var(--color-ink-750) 70%, transparent);
+  }
+  .input {
+    width: 100%;
+    background: var(--color-ink-900);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 14px;
+    color: var(--color-fg);
+    transition: border-color 0.15s;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-info);
+  }
+  .input::placeholder {
+    color: var(--color-fg-faint);
+  }
+  .label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-fg-muted);
+    margin-bottom: 5px;
+  }
+  .prose-legal h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--color-fg);
+  }
+  .prose-legal p, .prose-legal li {
+    color: var(--color-fg-muted);
+    line-height: 1.7;
+    margin-bottom: 0.75rem;
+  }
+  .prose-legal ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
