@@ -6,7 +6,8 @@ import type { Candle, CandleProvider, CandleTimeframe, DiscoveryCandidate, Disco
  * GeckoTerminal public API (no key). Docs: https://www.geckoterminal.com/dex-api
  * Free tier is ~30 calls/min; we stay under it. Used for OHLCV candles and trending/new pool discovery.
  */
-const gt = new ProviderClient("geckoterminal", "https://api.geckoterminal.com/api/v2", { perMinute: 25, burst: 4 }, {
+// Observed in production: the keyless tier returns 429 well below the documented 30/min, so we stay at ~10/min.
+const gt = new ProviderClient("geckoterminal", "https://api.geckoterminal.com/api/v2", { perMinute: 10, burst: 2 }, {
   Accept: "application/json;version=20230302",
 });
 
@@ -39,7 +40,7 @@ export const geckoterminal: CandleProvider & DiscoveryProvider = {
     const { unit, aggregate } = TF[timeframe];
     const res = await gt.get<{ data?: { attributes?: { ohlcv_list?: number[][] } } } | null>(
       `/networks/${CHAINS[chain].geckoterminalId}/pools/${pairAddress}/ohlcv/${unit}?aggregate=${aggregate}&limit=${limit}&currency=usd`,
-      { cacheSeconds: 60, nullOn: [404] },
+      { cacheSeconds: 300, nullOn: [404], retries: 1 },
     );
     const list = res?.data?.attributes?.ohlcv_list ?? [];
     return list
@@ -56,7 +57,7 @@ export const geckoterminal: CandleProvider & DiscoveryProvider = {
         [`/networks/${net}/trending_pools?page=1`, "trending"],
         [`/networks/${net}/new_pools?page=1`, "new_pool"],
       ] as const) {
-        const res = await gt.get<{ data?: GtPool[] }>(path, { cacheSeconds: 90 }).catch(() => ({ data: [] }));
+        const res = await gt.get<{ data?: GtPool[] }>(path, { cacheSeconds: 300, retries: 1 }).catch(() => ({ data: [] }));
         for (const pool of res.data ?? []) {
           const t = tokenFromRelId(pool.relationships?.base_token?.data?.id);
           if (t && t.address !== CHAINS[t.chain].wrappedNative) out.push({ ...t, reason, source: "geckoterminal" });

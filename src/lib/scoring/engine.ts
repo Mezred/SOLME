@@ -83,18 +83,28 @@ export interface ScoringResult {
 
 /** Documentation for the methodology page and admin weight editor. */
 export const FACTOR_DOCS: Record<string, { label: string; category: FactorCategory; description: string; inputs: string }> = {
-  price_momentum: { label: "Price momentum", category: "momentum", description: "Blended 1h/6h/24h change. Rewards steady positive trend; parabolic moves (>300% in 24h) are capped and flagged as overextended.", inputs: "priceChange h1, h6, h24" },
+  price_momentum: { label: "Price momentum", category: "momentum", description: "Blended 1h/6h/24h change. Rewards steady positive trend; parabolic moves (>50% in 1h, >150% in 6h or >300% in 24h) are capped, flagged as overextended and cannot produce a bullish signal.", inputs: "priceChange h1, h6, h24" },
   volume_acceleration: { label: "Volume acceleration", category: "momentum", description: "Last-hour volume relative to the 24h hourly average (log2 ratio).", inputs: "volume h1, h24" },
   buy_sell_imbalance: { label: "Buy/sell imbalance", category: "momentum", description: "Share of buy transactions over the last hour (weighted 70%) and 24h (30%). Requires ≥20 transactions. Counts transactions, not size: many small buys can coexist with large sells.", inputs: "txns h1, h24" },
   smart_money: { label: "Smart Money flow", category: "momentum", description: "Net buyers among wallets with a documented classification. Excluded when no wallet data source is configured.", inputs: "labeled wallet transactions" },
   liquidity_quality: { label: "Liquidity depth", category: "quality", description: "Log-scaled USD liquidity of the primary pair ($10k ≈ 20, $250k ≈ 70, $5M+ = 100).", inputs: "liquidity.usd" },
-  liquidity_to_mcap: { label: "Liquidity / market cap", category: "quality", description: "Liquidity as a share of market cap (or FDV). 5–30% is healthy; below 1% means price is easy to move.", inputs: "liquidity.usd, marketCap/fdv" },
+  liquidity_to_mcap: { label: "Liquidity / market cap", category: "quality", description: "Liquidity as a share of the larger of market cap and FDV. 5–30% is healthy; below 1% means price is easy to move. Pools of $1M+ are floored at 50 because established tokens trade mostly off-DEX.", inputs: "liquidity.usd, marketCap, fdv" },
   holder_distribution: { label: "Holder distribution", category: "quality", description: "Top-10 holder share excluding pools, locked and burn addresses.", inputs: "security provider holder list" },
   token_age: { label: "Pair age", category: "quality", description: "Older pairs have survived longer; pairs under 1 hour carry the highest uncertainty.", inputs: "pairCreatedAt" },
   trading_activity: { label: "Trading activity", category: "quality", description: "Log-scaled 24h transaction count.", inputs: "txns h24" },
   volatility: { label: "Volatility", category: "quality", description: "Standard deviation of candle returns; calmer price action scores higher.", inputs: "OHLCV candles" },
   market_regime: { label: "Market regime", category: "context", description: "24h change of the chain's native asset as broad risk-on/risk-off context.", inputs: "native asset priceChange h24" },
 };
+
+/** Pools at least this deep are not treated as "thin" relative to market cap. */
+export const DEEP_LIQUIDITY_USD = 1_000_000;
+/** Bullish signals are not issued for pairs younger than this; they are listed under New Launches instead. */
+export const MIN_SIGNAL_AGE_HOURS = 1;
+
+/** Parabolic in any window: these moves are flagged and never rewarded beyond a capped score. */
+export function isOverextended(pc: { h1: number | null; h6: number | null; h24: number | null }): boolean {
+  return (pc.h1 ?? 0) > 50 || (pc.h6 ?? 0) > 150 || (pc.h24 ?? 0) > 300;
+}
 
 const clamp = (x: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, x));
 const round = (x: number) => Math.round(x);
@@ -130,10 +140,10 @@ export function computeFactors(input: ScoringInput, weights: Record<string, numb
     } else {
       const blended = 0.5 * (h1 ?? 0) + 0.3 * ((h6 ?? 0) / 2) + 0.2 * ((h24 ?? 0) / 4);
       let s = 50 + 2.5 * blended;
-      const overextended = (h24 ?? 0) > 300;
+      const overextended = isOverextended(m.priceChange);
       if (overextended) s = Math.min(s, 60);
       out.push(factor("price_momentum", w("price_momentum"), s, { h1, h6, h24, overextended },
-        overextended ? `Up ${fmtPct(h24!)} in 24h — overextended, capped` : `1h ${h1 === null ? "n/a" : fmtPct(h1)}, 6h ${h6 === null ? "n/a" : fmtPct(h6)}, 24h ${h24 === null ? "n/a" : fmtPct(h24)}`));
+        overextended ? `Parabolic move (1h ${fmtPct(h1 ?? 0)}, 24h ${fmtPct(h24 ?? 0)}) — overextended, capped` : `1h ${h1 === null ? "n/a" : fmtPct(h1)}, 6h ${h6 === null ? "n/a" : fmtPct(h6)}, 24h ${h24 === null ? "n/a" : fmtPct(h24)}`));
     }
   }
 
@@ -192,12 +202,17 @@ export function computeFactors(input: ScoringInput, weights: Record<string, numb
   // Liquidity / market cap
   {
     const L = m.liquidityUsd;
-    const cap = m.marketCap ?? m.fdv;
+    // Providers sometimes report circulating cap below pool liquidity; use the larger valuation.
+    const cap = Math.max(m.marketCap ?? 0, m.fdv ?? 0) || null;
     if (L === null || !cap) out.push(factor("liquidity_to_mcap", w("liquidity_to_mcap"), null, {}, "Market cap or liquidity not reported"));
     else {
       const r = (L / cap) * 100;
-      const s = interp(r, [[0.2, 0], [1, 25], [5, 80], [15, 100], [30, 90], [60, 55], [100, 35]]);
-      out.push(factor("liquidity_to_mcap", w("liquidity_to_mcap"), s, { ratio_pct: Number(r.toFixed(2)), market_cap: cap }, `Liquidity is ${r.toFixed(1)}% of market cap`));
+      let s = interp(r, [[0.2, 0], [1, 25], [5, 80], [15, 100], [30, 90], [60, 55], [100, 35]]);
+      // Established tokens trade mostly off-DEX; with ≥$1M pooled the ratio stops being a thin-book warning.
+      const deep = L >= DEEP_LIQUIDITY_USD;
+      if (deep) s = Math.max(s, 50);
+      out.push(factor("liquidity_to_mcap", w("liquidity_to_mcap"), s, { ratio_pct: Number(r.toFixed(2)), market_cap: cap, deep_pool: deep },
+        `Liquidity is ${r < 0.1 ? r.toFixed(2) : r.toFixed(1)}% of market cap${deep ? " (deep pool; ratio de-emphasized)" : ""}`));
     }
   }
 
@@ -317,9 +332,9 @@ export function scoreToken(input: ScoringInput, settings: ScoringSettings): Scor
   const ageH = m.pairCreatedAt ? (input.now.getTime() - m.pairCreatedAt.getTime()) / 3_600_000 : null;
   if (ageH !== null && ageH < 1) { risk += 10; riskFlags.push("Pair is less than 1 hour old"); }
   if (m.liquidityUsd !== null && m.liquidityUsd < th.min_liquidity_usd) { risk += 15; riskFlags.push(`Liquidity below ${usd(th.min_liquidity_usd)} minimum`); }
-  if (byKey.price_momentum?.evidence.overextended) { risk += 10; riskFlags.push(`Overextended: ${fmtPct(m.priceChange.h24!)} in 24h`); }
+  if (byKey.price_momentum?.evidence.overextended) { risk += 10; riskFlags.push(`Overextended: 1h ${fmtPct(m.priceChange.h1 ?? 0)}, 24h ${fmtPct(m.priceChange.h24 ?? 0)}`); }
   const lr = byKey.liquidity_to_mcap?.evidence.ratio_pct as number | undefined;
-  if (lr !== undefined && lr < 1) { risk += 10; riskFlags.push("Thin liquidity relative to market cap"); }
+  if (lr !== undefined && lr < 1 && !byKey.liquidity_to_mcap?.evidence.deep_pool) { risk += 10; riskFlags.push("Thin liquidity relative to market cap"); }
   if (m.promoted) riskFlags.push("Paid promotion active on DexScreener (not a quality signal)");
   const stale = (input.now.getTime() - input.capturedAt.getTime()) / 60_000 > th.stale_after_minutes;
   if (stale) riskFlags.push("Market data is stale");
@@ -377,6 +392,8 @@ export function scoreToken(input: ScoringInput, settings: ScoringSettings): Scor
   const bullish = signalType === "momentum" || signalType === "accumulation" || signalType === "breakout_watch";
   if (bullish && aiScore < th.signal_min_score) reasons.push("Score below threshold");
   if (bullish && (secLevel === "high")) reasons.push("High security risk");
+  if (bullish && (ageH === null || ageH < MIN_SIGNAL_AGE_HOURS)) reasons.push("Pair too new for a bullish signal");
+  if (bullish && byKey.price_momentum?.evidence.overextended) reasons.push("Overextended move");
   const eligible = reasons.length === 0;
 
   const scenario = bullish && eligible ? tradeScenario(m.priceUsd, input.candles) : null;

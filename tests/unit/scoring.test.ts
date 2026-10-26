@@ -125,6 +125,28 @@ describe("scoreToken", () => {
     expect(r.strength).toBe("avoid");
   });
 
+  it("never issues a bullish signal for a sub-1h pair with a parabolic hourly move (live regression)", () => {
+    const r = scoreToken(input({
+      priceChange: { m5: 10, h1: 214, h6: 214, h24: 214, d7: null },
+      volume: { m5: 50_000, h1: 400_000, h6: 400_000, h24: 400_000 },
+      pairCreatedAt: new Date(now.getTime() - 48 * 60_000),
+    }), settings);
+    expect(r.eligibility.eligible).toBe(false);
+    expect(r.eligibility.reasons).toContain("Pair too new for a bullish signal");
+    expect(r.eligibility.reasons).toContain("Overextended move");
+  });
+
+  it("does not flag deep large-cap pools as thin liquidity (live regression)", () => {
+    const r = scoreToken(input({ liquidityUsd: 3_000_000, marketCap: 4_000_000_000, fdv: 9_000_000_000 }), settings);
+    expect(r.riskFlags.some((f) => /Thin liquidity/.test(f))).toBe(false);
+    expect(r.factors.find((f) => f.key === "liquidity_to_mcap")!.score).toBeGreaterThanOrEqual(50);
+  });
+
+  it("uses the larger of market cap and FDV when providers disagree (live regression)", () => {
+    const r = scoreToken(input({ liquidityUsd: 2_000_000, marketCap: 500_000, fdv: 20_000_000 }), settings);
+    expect(r.factors.find((f) => f.key === "liquidity_to_mcap")!.evidence.ratio_pct).toBe(10);
+  });
+
   it("flags paid promotion without rewarding it", () => {
     const base = scoreToken(input(), settings);
     const promoted = scoreToken(input({ promoted: true }), settings);
