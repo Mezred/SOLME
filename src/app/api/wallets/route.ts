@@ -48,5 +48,6 @@ export const POST = api(async (req) => {
     );
   });
   await enqueue("wallets.sync", {}, { dedupKey: `wallets.sync:add:${wallet!.id}:${Math.floor(Date.now() / 60_000)}`, maxAttempts: 2 });
+  if (b.chain === "solana") await enqueue("wallets.score", {}, { dedupKey: `wallets.score:add:${Math.floor(Date.now() / 60_000)}`, maxAttempts: 2 });
   return ok({ id: wallet!.id }, { status: 201 });
 });

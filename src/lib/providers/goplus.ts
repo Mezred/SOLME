@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
-import { CHAINS, type ChainId } from "@/lib/chains";
+import { type ChainId } from "@/lib/chains";
 import { env } from "@/lib/env";
 import { ProviderClient } from "./http";
+import { SOLANA_CRITICAL, solanaLpChecks, solanaMintChecks } from "./onchain-security";
 import type { SecurityCheck, SecurityProvider, SecurityReport } from "./types";
 
 /**
  * GoPlus Security token API. Docs: https://docs.gopluslabs.io/reference/api-overview
  * Works without a key at a low rate; GOPLUS_APP_KEY/SECRET raise limits.
- * Observed behaviour (verified Oct 2026): both the EVM and Solana endpoints accept comma-separated
+ * Observed behaviour (verified Oct 2026): the Solana endpoint accepts comma-separated
  * addresses but return a result only for the FIRST one, so every token is queried individually.
  * Empty-string fields (e.g. buy_tax before a token is tradable) mean "not determined", not zero.
  */
@@ -48,13 +49,6 @@ function check(key: string, label: string, value: boolean | null, bad: "fail" | 
   return value ? { key, label, result: bad, detail: detailBad } : { key, label, result: "pass", detail: detailOk };
 }
 
-function taxCheck(key: string, label: string, v: number | null): SecurityCheck {
-  if (v === null) return { key, label, result: "unavailable", detail: "Tax not determined (token may not be tradable yet)" };
-  if (v >= 50) return { key, label, result: "fail", detail: `${v.toFixed(1)}% tax` };
-  if (v >= 10) return { key, label, result: "warn", detail: `${v.toFixed(1)}% tax` };
-  return { key, label, result: "pass", detail: `${v.toFixed(1)}% tax` };
-}
-
 function top10(holders: unknown, exclude: Set<string>): number | null {
   if (!Array.isArray(holders) || holders.length === 0) return null;
   const list = holders as { address?: string; account?: string; percent?: string; is_locked?: number; tag?: string }[];
@@ -86,6 +80,13 @@ function riskLevel(checks: SecurityCheck[], criticalKeys: string[]): SecurityRep
   return "low";
 }
 
+/** Own on-chain / simulation checks replace GoPlus checks with the same key and are added otherwise. */
+function merge(checks: SecurityCheck[], extra: SecurityCheck[]): SecurityCheck[] {
+  const out = checks.map((c) => extra.find((e) => e.key === c.key && e.result !== "unavailable") ?? c);
+  for (const e of extra) if (!checks.some((c) => c.key === e.key)) out.push(e);
+  return out;
+}
+
 function finalize(provider: string, checks: SecurityCheck[], criticalKeys: string[], limitations: string, holderCount: number | null, top: number | null, raw: unknown): SecurityReport {
   const unavailable = checks.filter((c) => c.result === "unavailable").map((c) => c.key);
   const status = unavailable.length === checks.length ? "unavailable" : unavailable.length > 0 ? "partial" : "complete";
@@ -103,47 +104,7 @@ function finalize(provider: string, checks: SecurityCheck[], criticalKeys: strin
   };
 }
 
-export function normalizeEvm(r: Raw, exclude: string[] = []): SecurityReport {
-  const ownerRenounced = typeof r.owner_address === "string" ? /^(0x0{40}|)$/i.test(r.owner_address) || /dead$/i.test(r.owner_address) : null;
-  const top = top10(r.holders, new Set(exclude.map((x) => x.toLowerCase())));
-  const lpHolders = Array.isArray(r.lp_holders) ? (r.lp_holders as { is_locked?: number; percent?: string }[]) : null;
-  const lockedLp = lpHolders ? lpHolders.filter((h) => h.is_locked === 1).reduce((s, h) => s + (pct(h.percent) ?? 0), 0) : null;
-  const checks: SecurityCheck[] = [
-    check("honeypot", "Honeypot simulation", flag(r.is_honeypot), "fail", "Simulation indicates tokens cannot be sold", "Sell simulation succeeded"),
-    check("buy_restriction", "Buy restriction", flag(r.cannot_buy), "fail", "Buying is restricted", "No buy restriction detected"),
-    check("sell_restriction", "Sell-all restriction", flag(r.cannot_sell_all), "fail", "Holders cannot sell their full balance", "No sell-all restriction detected"),
-    taxCheck("buy_tax", "Buy tax", pct(r.buy_tax)),
-    taxCheck("sell_tax", "Sell tax", pct(r.sell_tax)),
-    check("contract_verified", "Contract source verified", flag(r.is_open_source) === null ? null : !flag(r.is_open_source), "warn", "Source code is not verified", "Source code is verified"),
-    check("upgradeable_proxy", "Upgradeable proxy", flag(r.is_proxy), "warn", "Contract is an upgradeable proxy; logic can change", "Not a proxy contract"),
-    check("mintable", "Mint function", flag(r.is_mintable), "warn", "Supply can be increased", "No mint function detected"),
-    check("ownership", "Ownership", ownerRenounced === null ? null : !ownerRenounced, "warn", "Contract has an active owner", "Ownership renounced"),
-    check("hidden_owner", "Hidden owner", flag(r.hidden_owner), "fail", "Hidden owner mechanism detected", "No hidden owner"),
-    check("take_back_ownership", "Reclaim ownership", flag(r.can_take_back_ownership), "fail", "Ownership can be reclaimed after renouncing", "Ownership cannot be reclaimed"),
-    check("owner_balance_control", "Owner can modify balances", flag(r.owner_change_balance), "fail", "Owner can change holder balances", "Owner cannot change balances"),
-    check("blacklist", "Blacklist function", flag(r.is_blacklisted), "warn", "Addresses can be blacklisted from trading", "No blacklist function"),
-    check("pausable_transfers", "Pausable transfers", flag(r.transfer_pausable), "warn", "Transfers can be paused", "Transfers cannot be paused"),
-    check("slippage_modifiable", "Modifiable tax", flag(r.slippage_modifiable), "warn", "Owner can change trading tax", "Tax is not modifiable"),
-    check("self_destruct", "Self-destruct", flag(r.selfdestruct), "fail", "Contract can self-destruct", "No self-destruct"),
-    check("creator_honeypot_history", "Creator history", flag(r.honeypot_with_same_creator), "fail", "Creator has deployed honeypots before", "No honeypots from this creator found"),
-    concentrationCheck(top),
-    lockedLp === null
-      ? { key: "lp_lock", label: "Liquidity lock", result: "unavailable", detail: "LP holder data not available" }
-      : { key: "lp_lock", label: "Liquidity lock", result: lockedLp >= 80 ? "pass" : lockedLp >= 30 ? "warn" : "fail", detail: `${lockedLp.toFixed(1)}% of LP tokens locked` },
-  ];
-  const holderCount = Number(r.holder_count);
-  return finalize(
-    "goplus",
-    checks,
-    ["honeypot", "sell_restriction", "owner_balance_control", "sell_tax", "hidden_owner"],
-    "Static analysis and sell simulation by GoPlus. Simulations can miss time-delayed or conditional traps; liquidity lock data depends on known lockers.",
-    Number.isFinite(holderCount) && holderCount > 0 ? holderCount : null,
-    top,
-    r,
-  );
-}
-
-export function normalizeSolana(r: Raw, exclude: string[] = []): SecurityReport {
+export function normalizeSolana(r: Raw, exclude: string[] = [], extra: SecurityCheck[] = []): SecurityReport {
   const transferFee = r.transfer_fee as Record<string, unknown> | undefined;
   const hasFee = transferFee && typeof transferFee === "object" ? Object.keys(transferFee).length > 0 : null;
   const hooks = Array.isArray(r.transfer_hook) ? (r.transfer_hook as unknown[]).length > 0 : null;
@@ -164,13 +125,26 @@ export function normalizeSolana(r: Raw, exclude: string[] = []): SecurityReport 
   ];
   const holderCount = Number(r.holder_count);
   return finalize(
-    "goplus",
-    checks,
-    ["mint_authority", "freeze_authority", "balance_mutable", "non_transferable"],
-    "SPL/Token-2022 authority checks by GoPlus. Honeypot simulation and liquidity-lock status are not available for Solana from this provider; contract verification does not apply to SPL tokens.",
+    extra.length ? "goplus+rpc" : "goplus",
+    merge(checks, extra),
+    ["mint_authority", "freeze_authority", "balance_mutable", "non_transferable", ...SOLANA_CRITICAL],
+    `${extra.length ? "Mint authorities and Token-2022 extensions read on-chain; holder and other checks by GoPlus." : "SPL/Token-2022 authority checks by GoPlus."} Honeypot simulation is not available for Solana; liquidity lock is read on-chain for PumpSwap and Raydium CPMM pools (other pool types are not checked); contract verification does not apply to SPL tokens.`,
     Number.isFinite(holderCount) && holderCount > 0 ? holderCount : null,
     top,
     r,
+  );
+}
+
+/** GoPlus had nothing: a report from our own on-chain checks alone. */
+export function ownChecksOnly(extra: SecurityCheck[]): SecurityReport {
+  return finalize(
+    "rpc",
+    extra,
+    ["mint_authority", "freeze_authority", "non_transferable", ...SOLANA_CRITICAL],
+    "Mint authorities, Token-2022 extensions and LP lock read on-chain; GoPlus had no data, so holder checks are missing.",
+    null,
+    null,
+    null,
   );
 }
 
@@ -195,14 +169,18 @@ export const goplus: SecurityProvider = {
     const out = new Map<string, SecurityReport>();
     const headers = await authHeaders().catch(() => ({}));
     const exclude = context.excludeHolders ?? [];
-    const solana = CHAINS[chain].kind === "solana";
+    // Read the mints once for the whole batch (1 credit per 100).
+    const mintChecks = await solanaMintChecks(addresses);
+    const lpChecks = context.pools ? await solanaLpChecks(new Map(Object.entries(context.pools))) : new Map<string, SecurityCheck>();
     for (const a of addresses) {
-      const path = solana ? `/solana/token_security?contract_addresses=${a}` : `/token_security/${CHAINS[chain].goplusId}?contract_addresses=${a}`;
-      const res = await gp.get<{ code: number; message?: string; result?: Record<string, Raw> }>(path, { cacheSeconds: 600, headers });
-      // A non-OK code is a provider error, not "no data": skip so the token is retried next cycle.
-      if (res.code !== 1) continue;
-      const r = Object.entries(res.result ?? {}).find(([k]) => (solana ? k === a : k.toLowerCase() === a.toLowerCase()))?.[1];
-      out.set(a, r ? (solana ? normalizeSolana(r, exclude) : normalizeEvm(r, exclude)) : unavailableReport("Provider returned no data for this token."));
+      const res = await gp.get<{ code: number; message?: string; result?: Record<string, Raw> }>(`/solana/token_security?contract_addresses=${a}`, { cacheSeconds: 600, headers });
+      const extra = [...(mintChecks.get(a) ?? []), ...(lpChecks.has(a) ? [lpChecks.get(a)!] : [])].filter((c) => c.result !== "unavailable");
+      // A non-OK code is a provider error, not "no data": skip so the token is retried next cycle (unless our own checks ran).
+      if (res.code !== 1 && !extra.length) continue;
+      const r = res.code === 1 ? Object.entries(res.result ?? {}).find(([k]) => k === a)?.[1] : undefined;
+      if (r) out.set(a, normalizeSolana(r, exclude, extra));
+      else if (extra.length) out.set(a, ownChecksOnly(extra));
+      else out.set(a, unavailableReport("Provider returned no data for this token."));
     }
     return out;
   },

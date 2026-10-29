@@ -1,32 +1,47 @@
 @import "tailwindcss";
 
-/* NEXALPHA design tokens — dark trading-terminal palette. */
+/*
+ * SOLME design tokens: a cool near-black is the main color (surfaces, slate lines); white text and purple
+ * are the second colors, purple used only for buttons, active states and gains; red is reserved for losses and danger.
+ * "warn", "info" and "ai" are shades of the purple family so the UI never needs a third hue. Everything is set in one monospace face.
+ * The "up" token name is historical: it is the accent (purple), not literally green.
+ */
 @theme {
-  --color-ink-950: #04060b;
-  --color-ink-900: #070a12;
-  --color-ink-850: #0a0e18;
-  --color-ink-800: #0d121e;
-  --color-ink-750: #111726;
-  --color-ink-700: #161d2f;
-  --color-line: #1c2436;
-  --color-line-strong: #2a3550;
+  --color-ink-950: #04060a;
+  --color-ink-900: #080b10;
+  --color-ink-850: #0b0f15;
+  --color-ink-800: #0e131a;
+  --color-ink-750: #131922;
+  --color-ink-700: #19202a;
+  --color-line: #1a2029;
+  --color-line-strong: #2a323d;
 
-  --color-fg: #e7eaf3;
-  --color-fg-muted: #9098ad;
-  --color-fg-faint: #5d667c;
+  --color-fg: #f2f4f7;
+  --color-fg-muted: #9aa3ae;
+  --color-fg-faint: #5c6672;
 
-  --color-up: #1fe08a;
-  --color-up-dim: #0f5c3c;
-  --color-down: #ff4d5e;
-  --color-down-dim: #5e1d27;
-  --color-warn: #f4b544;
-  --color-warn-dim: #5a4114;
-  --color-ai: #8f7cff;
-  --color-ai-dim: #2e2763;
-  --color-info: #4d8dff;
+  --color-up: #b388ff;
+  --color-up-soft: #9a7fd1;
+  --color-up-dim: #2a1650;
+  --color-down: #ff4545;
+  --color-down-dim: #3d0f0f;
+  --color-warn: #f0a8ff;
+  --color-warn-dim: #3a1544;
+  --color-ai: #c9a8ff;
+  --color-ai-dim: #24133f;
+  --color-info: #c9a8ff;
 
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: var(--font-term), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-mono: var(--font-term), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-display: var(--font-headline), ui-sans-serif, system-ui, sans-serif;
+
+  /* Soft corners (pills stay round via rounded-full). */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-3xl: 12px;
 
   --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
   --animate-fade-in: fade-in 0.25s ease-out;
@@ -52,12 +67,14 @@ html, body {
 
 body {
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "tnum";
+  font-feature-settings: "tnum";
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-up) 30%, transparent);
+  background: var(--color-up);
+  color: var(--color-ink-950);
 }
 
 * {
@@ -66,9 +83,9 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-info);
+  outline: 1px solid var(--color-up);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 1px;
 }
 
 @layer components {
@@ -77,9 +94,13 @@ body {
     font-variant-numeric: tabular-nums;
   }
   .card {
-    background: var(--color-ink-850);
+    background: var(--color-ink-900);
     border: 1px solid var(--color-line);
-    border-radius: 10px;
+    border-radius: 8px;
+    /* Cards sit in grid/flex layouts: let them shrink below their content width (tables scroll inside their
+       own overflow wrappers) and let long unbreakable strings (addresses, user agents) wrap. */
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .grid-bg {
     background-image:
@@ -97,7 +118,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: var(--color-ink-800);
+    background: var(--color-ink-850);
     color: var(--color-fg-faint);
     font-weight: 500;
     font-size: 11px;
@@ -119,27 +140,49 @@ body {
   }
   .input {
     width: 100%;
-    background: var(--color-ink-900);
+    background: var(--color-ink-950);
     border: 1px solid var(--color-line-strong);
-    border-radius: 7px;
+    border-radius: 6px;
     padding: 7px 10px;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--color-fg);
+    caret-color: var(--color-up);
     transition: border-color 0.15s;
   }
   .input:focus {
     outline: none;
-    border-color: var(--color-info);
+    border-color: var(--color-up);
   }
   .input::placeholder {
     color: var(--color-fg-faint);
   }
   .label {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--color-fg-muted);
     margin-bottom: 5px;
+  }
+  /* Terminal prompt before page titles: "> Smart Money". */
+  .prompt::before {
+    content: "> ";
+    color: var(--color-up);
+  }
+  /* Blinking block cursor for live indicators and empty prompts. */
+  .cursor::after {
+    content: "";
+    display: inline-block;
+    width: 0.55em;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--color-up);
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
   }
   .prose-legal h2 {
     font-size: 1.15rem;
@@ -164,4 +207,39 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── Landing hero: alerts arriving on a phone (src/components/marketing/alert-showcase.tsx) ── */
+.hero-glow {
+  background: radial-gradient(closest-side, rgba(179, 136, 255, 0.28), rgba(179, 136, 255, 0.08) 55%, transparent 75%);
+  filter: blur(8px);
+}
+@keyframes alert-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.alert-in {
+  animation: alert-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0s) both;
+}
+/* The first alert's scam check: "running" for 1.4s after it lands, then "passed". */
+@keyframes check-out { to { opacity: 0; } }
+@keyframes check-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.check-pending {
+  animation: check-out 0.3s ease calc(var(--d, 0s) + 1.4s) both;
+}
+.check-done {
+  opacity: 0;
+  animation: check-in 0.35s ease calc(var(--d, 0s) + 1.45s) both;
+}
+@keyframes chat-scroll { to { transform: translateY(-190px); } }
+.chat-scroll {
+  animation: chat-scroll 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 4.3s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-scroll { animation: none; }
+  .alert-in, .check-done { animation: none; opacity: 1; transform: none; }
+  .check-pending { animation: none; opacity: 0; }
+}
+.chat-fade {
+  mask-image: linear-gradient(to bottom, #000 78%, transparent);
 }

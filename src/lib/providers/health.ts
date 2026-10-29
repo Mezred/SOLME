@@ -53,7 +53,6 @@ export async function flushProviderHealth() {
   // Keyed integrations that are not configured are reported explicitly rather than omitted.
   const keyed: [string, boolean][] = [
     ["helius", integrations.helius],
-    ["alchemy", integrations.alchemy],
     ["anthropic", integrations.ai],
     ["stripe", integrations.stripe],
     ["resend", integrations.email],

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { goplus, normalizeEvm, normalizeSolana, unavailableReport } from "@/lib/providers/goplus";
+import { goplus, normalizeSolana, unavailableReport } from "@/lib/providers/goplus";
 
 describe("goplus.check request strategy (live regression)", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -9,56 +9,20 @@ describe("goplus.check request strategy (live regression)", () => {
     vi.stubGlobal("fetch", async (url: string) => {
       urls.push(url);
       const first = new URL(url).searchParams.get("contract_addresses")!.split(",")[0];
-      return new Response(JSON.stringify({ code: 1, message: "OK", result: { [first]: { is_honeypot: "0", is_open_source: "1", buy_tax: "0", sell_tax: "0" } } }), { status: 200 });
+      return new Response(JSON.stringify({ code: 1, message: "OK", result: { [first]: { mintable: { status: "0" }, freezable: { status: "0" }, holders: [] } } }), { status: 200 });
     });
-    const a = "0x00000000000000000000000000000000000000a1";
-    const b = "0x00000000000000000000000000000000000000b2";
-    const out = await goplus.check("base", [a, b]);
-    expect(urls).toHaveLength(2);
+    const a = "MintAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1";
+    const b = "MintBbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2";
+    const out = await goplus.check("solana", [a, b]);
+    expect(urls.filter((u) => u.includes("gopluslabs"))).toHaveLength(2);
     expect(out.get(a)!.status).not.toBe("unavailable");
     expect(out.get(b)!.status).not.toBe("unavailable");
   });
 
   it("skips (rather than storing 'unavailable') when the provider returns an error code", async () => {
     vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ code: 4029, message: "rate limited" }), { status: 200 }));
-    const out = await goplus.check("ethereum", ["0x00000000000000000000000000000000000000c3"]);
+    const out = await goplus.check("solana", ["MintCcccccccccccccccccccccccccccccccccccccc3"]);
     expect(out.size).toBe(0);
-  });
-});
-
-describe("GoPlus EVM normalization", () => {
-  it("treats empty tax fields as unavailable, not zero", () => {
-    const r = normalizeEvm({ is_honeypot: "0", buy_tax: "", sell_tax: "", is_open_source: "1" });
-    expect(r.checks.find((c) => c.key === "buy_tax")!.result).toBe("unavailable");
-    expect(r.checks.find((c) => c.key === "sell_tax")!.result).toBe("unavailable");
-    expect(r.status).toBe("partial");
-  });
-
-  it("rates a honeypot as critical", () => {
-    const r = normalizeEvm({ is_honeypot: "1", is_open_source: "1", sell_tax: "0", buy_tax: "0" });
-    expect(r.riskLevel).toBe("critical");
-  });
-
-  it("rates high sell tax as critical and moderate tax as a warning", () => {
-    expect(normalizeEvm({ sell_tax: "0.6", buy_tax: "0" }).riskLevel).toBe("critical");
-    const warn = normalizeEvm({ sell_tax: "0.12", buy_tax: "0", is_honeypot: "0" });
-    expect(warn.checks.find((c) => c.key === "sell_tax")!.result).toBe("warn");
-  });
-
-  it("excludes pool and locked holders from concentration", () => {
-    const r = normalizeEvm(
-      {
-        is_honeypot: "0",
-        holders: [
-          { address: "0xPOOL", percent: "0.60" },
-          { address: "0xlocker", percent: "0.10", is_locked: 1 },
-          { address: "0xa", percent: "0.05" },
-          { address: "0xb", percent: "0.03" },
-        ],
-      },
-      ["0xpool"],
-    );
-    expect(r.top10HolderPct).toBe(8);
   });
 });
 

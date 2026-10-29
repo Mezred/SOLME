@@ -4,8 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, ChainBadge, cx, TokenAvatar } from "@/components/ui";
 import { apiFetch } from "@/lib/client";
-import { ALERT_LABELS, TOKEN_RULES, type AlertType } from "@/lib/alerts/rules";
-import { CHAINS, CHAIN_IDS } from "@/lib/chains";
+import { ALERT_LABELS, MANAGED_RULES, TOKEN_RULES, type AlertType } from "@/lib/alerts/rules";
 
 interface Hit {
   id: string;
@@ -15,33 +14,35 @@ interface Hit {
   logo_url: string | null;
 }
 
-const SIGNAL_TYPES = ["momentum", "accumulation", "breakout_watch", "distribution", "high_risk"];
-
 export function NewAlertForm({
   presetToken,
   wallets,
   allowedChannels,
+  defaultChannels = ["in_app"],
   emailVerified,
   walletAlertsAllowed,
 }: {
   presetToken: Hit | null;
   wallets: { id: string; label: string }[];
   allowedChannels: string[];
+  /** Pre-ticked channels: in-app, plus Telegram once it is connected. */
+  defaultChannels?: string[];
   emailVerified: boolean;
   walletAlertsAllowed: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(Boolean(presetToken));
-  const [type, setType] = useState<AlertType>(presetToken ? "price_change" : "signal_score");
+  const [type, setType] = useState<AlertType>(presetToken ? "price_change" : "dev_deploy");
   const [token, setToken] = useState<Hit | null>(presetToken);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [name, setName] = useState("");
-  const [chain, setChain] = useState("");
-  const [walletId, setWalletId] = useState(wallets[0]?.id ?? "");
-  const [p, setP] = useState<Record<string, string>>({ price: "", window: "h1", pct: "10", direction: "either", multiple: "3", min_score: "75", min_level: "high", liqPct: "25" });
-  const [types, setTypes] = useState<string[]>(["momentum", "accumulation"]);
-  const [channels, setChannels] = useState<string[]>(["in_app"]);
+  // "" = every wallet the user follows.
+  const [walletId, setWalletId] = useState("");
+  const [walletDirs, setWalletDirs] = useState<string[]>(["buy", "sell", "transfer_out"]);
+  const [walletCheck, setWalletCheck] = useState(false);
+  const [p, setP] = useState<Record<string, string>>({ price: "", window: "h1", pct: "10", direction: "either", multiple: "3", min_level: "high", liqPct: "25", devScore: "60", progress: "80", curveDevScore: "40", walletScore: "60", buySol: "0.5", walletMinSol: "0" });
+  const [channels, setChannels] = useState<string[]>(defaultChannels);
   const [cooldown, setCooldown] = useState("60");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,11 +69,18 @@ export function NewAlertForm({
         return { multiple: Number(p.multiple) };
       case "liquidity_drop":
         return { pct: Number(p.liqPct) };
-      case "signal_score":
-        return { min_score: Number(p.min_score), signal_types: types.length ? types : undefined };
       case "security_warning":
         return { min_level: p.min_level };
       case "wallet_activity":
+        return { directions: walletDirs, min_sol: Number(p.walletMinSol) || 0, pass_check: walletCheck };
+      case "dev_deploy":
+        return { min_dev_score: Number(p.devScore) };
+      case "curve_progress":
+        return { min_progress: Number(p.progress), min_dev_score: Number(p.curveDevScore) };
+      case "smart_wallet_buy":
+        return { min_wallet_score: Number(p.walletScore), min_buy_sol: Number(p.buySol) };
+      case "screener_match": // switched on from the Screener, not this form
+      case "smart_group_buy": // switched on as a preset on the Alerts page
         return {};
     }
   }
@@ -85,7 +93,7 @@ export function NewAlertForm({
       body: {
         name: name || `${ALERT_LABELS[type]}${token && needsToken ? ` · ${token.symbol}` : ""}`,
         rule_type: type,
-        chain: type === "signal_score" && chain ? chain : null,
+        chain: null,
         token_id: needsToken ? token?.id ?? null : null,
         wallet_id: type === "wallet_activity" ? walletId || null : null,
         params: params(),
@@ -114,9 +122,9 @@ export function NewAlertForm({
         <div>
           <label htmlFor="al-type" className="label">Alert type</label>
           <select id="al-type" className="input" value={type} onChange={(e) => setType(e.target.value as AlertType)}>
-            {(Object.keys(ALERT_LABELS) as AlertType[]).map((t) => (
-              <option key={t} value={t} disabled={t === "wallet_activity" && !walletAlertsAllowed}>
-                {ALERT_LABELS[t]}{t === "wallet_activity" && !walletAlertsAllowed ? " (Pro)" : ""}
+            {(Object.keys(ALERT_LABELS) as AlertType[]).filter((t) => !MANAGED_RULES.includes(t)).map((t) => (
+              <option key={t} value={t} disabled={(t === "wallet_activity" || t === "smart_wallet_buy") && !walletAlertsAllowed}>
+                {ALERT_LABELS[t]}{(t === "wallet_activity" || t === "smart_wallet_buy") && !walletAlertsAllowed ? " (Pro)" : ""}
               </option>
             ))}
           </select>
@@ -170,22 +178,51 @@ export function NewAlertForm({
         {type === "security_warning" && (
           <div><label htmlFor="al-lvl" className="label">Minimum risk level</label><select id="al-lvl" className="input" value={p.min_level} onChange={set("min_level")}><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
         )}
-        {type === "signal_score" && (
+        {type === "dev_deploy" && (
+          <div className="md:col-span-3">
+            <label htmlFor="al-dev" className="label">Min dev score at launch (1–100)</label>
+            <input id="al-dev" className="input num max-w-[160px]" value={p.devScore} onChange={set("devScore")} inputMode="numeric" />
+            <p className="mt-1 text-xs text-fg-faint">Fires when a creator with this Smart Dev score and 2+ earlier launches launches on pump.fun or LetsBonk. 60+ means at least one earlier launch migrated.</p>
+          </div>
+        )}
+        {type === "curve_progress" && (
           <>
-            <div><label htmlFor="al-score" className="label">Min AI score</label><input id="al-score" className="input num" value={p.min_score} onChange={set("min_score")} inputMode="numeric" /></div>
-            <div><label htmlFor="al-chain" className="label">Chain</label><select id="al-chain" className="input" value={chain} onChange={(e) => setChain(e.target.value)}><option value="">All on my plan</option>{CHAIN_IDS.map((c) => <option key={c} value={c}>{CHAINS[c].name}</option>)}</select></div>
-            <fieldset className="md:col-span-2"><legend className="label">Signal types</legend>
-              <div className="flex flex-wrap gap-1">{SIGNAL_TYPES.map((t) => <button key={t} type="button" aria-pressed={types.includes(t)} onClick={() => toggle(types, t, setTypes)} className={cx("h-8 rounded-md border px-2.5 text-xs", types.includes(t) ? "border-up/40 bg-up/10 text-up" : "border-line-strong text-fg-muted")}>{t.replace("_", " ")}</button>)}</div>
-            </fieldset>
+            <div><label htmlFor="al-prog" className="label">Curve progress ≥ % (50–99)</label><input id="al-prog" className="input num" value={p.progress} onChange={set("progress")} inputMode="numeric" /></div>
+            <div><label htmlFor="al-cdev" className="label">And dev score ≥ (0 = any dev)</label><input id="al-cdev" className="input num" value={p.curveDevScore} onChange={set("curveDevScore")} inputMode="numeric" /></div>
+          </>
+        )}
+        {type === "smart_wallet_buy" && (
+          <>
+            <div><label htmlFor="al-ws" className="label">Min wallet score</label><input id="al-ws" className="input num" value={p.walletScore} onChange={set("walletScore")} inputMode="numeric" /></div>
+            <div><label htmlFor="al-sol" className="label">Min buy size (SOL)</label><input id="al-sol" className="input num" value={p.buySol} onChange={set("buySol")} inputMode="decimal" /></div>
+            <p className="self-end text-xs text-fg-faint md:col-span-2">Watched wallets: on-chain score 60+ and not bot-like (Smart Money candidates and scored tracked wallets).</p>
           </>
         )}
         {type === "wallet_activity" && (
-          <div className="md:col-span-2">
-            <label htmlFor="al-wallet" className="label">Tracked wallet</label>
-            {wallets.length ? (
-              <select id="al-wallet" className="input" value={walletId} onChange={(e) => setWalletId(e.target.value)}>{wallets.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}</select>
-            ) : <p className="text-sm text-fg-faint">Track a wallet in the Whale Tracker first.</p>}
-          </div>
+          <>
+            <div>
+              <label htmlFor="al-wallet" className="label">Wallet</label>
+              <select id="al-wallet" className="input" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
+                <option value="">All wallets I follow ({wallets.length})</option>
+                {wallets.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
+              </select>
+            </div>
+            <div><label htmlFor="al-wsol" className="label">Min trade size (SOL, 0 = all)</label><input id="al-wsol" className="input num" value={p.walletMinSol} onChange={set("walletMinSol")} inputMode="decimal" /></div>
+            <fieldset className="md:col-span-3">
+              <legend className="label">Alert on</legend>
+              <div className="flex flex-wrap gap-3 text-sm">
+                {([["buy", "Buys"], ["sell", "Sells"], ["transfer_out", "Tokens sent out"], ["transfer_in", "Tokens received (often spam airdrops)"]] as const).map(([d, l]) => (
+                  <label key={d} className="flex items-center gap-1.5">
+                    <input type="checkbox" className="accent-up" checked={walletDirs.includes(d)} onChange={() => toggle(walletDirs, d, setWalletDirs)} /> {l}
+                  </label>
+                ))}
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" className="accent-up" checked={walletCheck} onChange={() => setWalletCheck(!walletCheck)} /> Only buys that pass the scam check
+                </label>
+              </div>
+              {!wallets.length && <p className="mt-1 text-xs text-fg-faint">Follow a wallet on the Wallets page first; the alert covers every wallet you follow later too.</p>}
+            </fieldset>
+          </>
         )}
       </div>
 
@@ -196,7 +233,7 @@ export function NewAlertForm({
             const allowed = allowedChannels.includes(c);
             return (
               <label key={c} className={cx("flex items-center gap-1.5", !allowed && "opacity-50")}>
-                <input type="checkbox" className="accent-[#1fe08a]" disabled={!allowed || c === "in_app"} checked={channels.includes(c)} onChange={() => toggle(channels, c, setChannels)} />
+                <input type="checkbox" className="accent-up" disabled={!allowed || c === "in_app"} checked={channels.includes(c)} onChange={() => toggle(channels, c, setChannels)} />
                 {c === "in_app" ? "In-app (always)" : c === "email" ? `Email${!emailVerified ? " (verify email first)" : ""}` : "Telegram (link in Settings)"}
                 {!allowed && " · Pro"}
               </label>
@@ -236,4 +273,43 @@ export function DeleteRule({ id }: { id: string }) {
 export function MarkAllRead() {
   const router = useRouter();
   return <Button size="sm" onClick={async () => { await apiFetch("/api/notifications", { body: {} }); router.refresh(); }}>Mark all read</Button>;
+}
+
+/** One-click alert preset: creates the rule the first time, then just switches it on and off. */
+export function PresetSwitch({ preset, ruleId, active, channels, locked }: {
+  preset: { key: string; title: string; rule_type: string; params: Record<string, unknown> };
+  ruleId: string | null;
+  active: boolean;
+  channels: string[];
+  locked: string | null;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    const r = ruleId
+      ? await apiFetch(`/api/alerts/${ruleId}`, { method: "PATCH", body: { is_active: !active } })
+      : await apiFetch("/api/alerts", { body: { name: preset.title.slice(0, 80), rule_type: preset.rule_type, params: { ...preset.params, preset: preset.key }, channels, cooldown_minutes: 1 } });
+    setBusy(false);
+    if (r.error) return setError(r.error);
+    router.refresh();
+  }
+  if (locked) return <span className="text-xs text-fg-faint" title={locked}>{locked}</span>;
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <button
+        role="switch"
+        aria-checked={active}
+        aria-label={preset.title}
+        disabled={busy}
+        onClick={toggle}
+        className={cx("relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:opacity-50", active ? "border-up bg-up" : "border-line-strong bg-ink-800")}
+      >
+        <span className={cx("absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all", active ? "left-[18px] bg-ink-950" : "left-0.5 bg-fg-faint")} />
+      </button>
+      {error && <span role="alert" className="max-w-[200px] text-right text-[10px] text-down">{error}</span>}
+    </span>
+  );
 }

@@ -28,7 +28,7 @@ interface Item {
   volume_h24: number | null;
   captured_at: Date | null;
   risk_level: string | null;
-  last_signal: string | null;
+  pattern: string | null;
 }
 
 export default async function WatchlistPage() {
@@ -41,7 +41,7 @@ export default async function WatchlistPage() {
               (t.metadata->'last_score'->>'ai')::int AS last_score,
               snap.price_usd, snap.price_change_h1, snap.price_change_h24, snap.liquidity_usd, snap.volume_h24, snap.captured_at,
               sec.risk_level,
-              (SELECT signal_type FROM signals s WHERE s.token_id = t.id AND s.status = 'active' ORDER BY created_at DESC LIMIT 1) AS last_signal
+              CASE WHEN (t.metadata->'last_score'->>'eligible')::boolean THEN t.metadata->'last_score'->>'type' END AS pattern
          FROM watchlist_items i JOIN token_assets t ON t.id = i.token_id
          LEFT JOIN LATERAL (SELECT * FROM market_snapshots ms WHERE ms.token_id = t.id ORDER BY captured_at DESC LIMIT 1) snap ON true
          LEFT JOIN LATERAL (SELECT risk_level FROM token_security_checks sc WHERE sc.token_id = t.id ORDER BY checked_at DESC LIMIT 1) sec ON true
@@ -62,12 +62,12 @@ export default async function WatchlistPage() {
             <Card key={l.id}>
               <CardHeader title={l.name} subtitle={`${rows.length} tokens`} action={lists.length > 1 ? <DeleteWatchlist id={l.id} /> : undefined} />
               {rows.length === 0 ? (
-                <EmptyState title="No tokens yet" body={<>Open any token from <Link href="/app/signals" className="text-up">Live Signals</Link> or the <Link href="/app/screener" className="text-up">Screener</Link> and choose “Add to watchlist”.</>} />
+                <EmptyState title="No tokens yet" body={<>Open any token from the <Link href="/app/screener" className="text-up">Screener</Link> or <Link href="/app/smart-dev" className="text-up">Proven Devs</Link> and choose “Add to watchlist”.</>} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="table-terminal">
                     <thead>
-                      <tr><th className="w-6" /><th>Token</th><th>Score</th><th className="text-right">Price</th><th className="text-right">1h</th><th className="text-right">24h</th><th className="text-right">Liquidity</th><th className="text-right">Vol 24h</th><th>Security</th><th>Active signal</th><th className="text-right">Updated</th><th /></tr>
+                      <tr><th className="w-6" /><th>Token</th><th>Score</th><th className="text-right">Price</th><th className="text-right">1h</th><th className="text-right">24h</th><th className="text-right">Liquidity</th><th className="text-right">Vol 24h</th><th>Security</th><th>Pattern</th><th className="text-right">Updated</th><th /></tr>
                     </thead>
                     <tbody>
                       {rows.map((r) => (
@@ -88,7 +88,7 @@ export default async function WatchlistPage() {
                           <td className="num text-right">{formatUsd(r.liquidity_usd)}</td>
                           <td className="num text-right">{formatUsd(r.volume_h24)}</td>
                           <td><RiskBadge level={r.risk_level} /></td>
-                          <td className="text-xs text-fg-muted">{r.last_signal?.replace("_", " ") ?? "—"}</td>
+                          <td className="text-xs text-fg-muted">{r.pattern?.replace("_", " ") ?? "—"}</td>
                           <td className="text-right text-xs text-fg-faint">{timeAgo(r.captured_at)}</td>
                           <td><RemoveItem itemId={r.item_id} /></td>
                         </tr>

@@ -6,11 +6,26 @@
 |---|---|---|
 | Web app | Vercel (or any Node 20.9+ host: Railway, Render, Fly.io, a VM) | `npm run build && npm start` |
 | Database | Managed PostgreSQL 15+ (Neon, Supabase, RDS, Railway) | Must permit `CREATE ROLE` + `GRANT` (used for row-level security). Enable automated backups/PITR. |
-| Background worker | A long-running process: `npm run worker` (Railway/Render/Fly worker) | Preferred. Alternatively Vercel Cron → `/api/cron/tick` every 1–2 min. |
+| Background worker | A long-running process: `npm run worker` (Railway/Render/Fly worker) | **Required for the live feeds** (PumpPortal launches, Helius smart-wallet websocket): they hold open sockets, which Vercel Cron → `/api/cron/tick` cannot. Cron alone runs the scheduled jobs only. |
 | Email | Resend | Verify your sending domain (SPF/DKIM). |
 | Payments | Stripe | Products + monthly/annual Prices for Pro and Elite. |
 
 PGlite (embedded DB) is for local development only; production refuses to start without `DATABASE_URL` (override with `ALLOW_PGLITE_IN_PRODUCTION=true` only on a single instance with a persistent disk).
+
+## Moving off the embedded database (PGlite → Postgres)
+
+PGlite can only be opened by one process, so with it the web app and the worker share one process (`WORKER_IN_PROCESS=true`, the default without `DATABASE_URL`). To run the worker on its own, or to go live:
+
+1. Create the Postgres database (see the table above).
+2. Stop `npm run dev` (it holds the PGlite files), then copy everything across:
+   `npm run db:copy-to-postgres -- "postgres://user:pass@host:5432/nexalpha?sslmode=require"`
+   It migrates the target, empties it, copies every table (users, alerts, Telegram links, dev history, wallet scores, snapshots…) and moves id counters past the copied rows. It refuses a target that already has users unless you add `--force`. Your PGlite files are only read, never changed.
+3. In `.env.local` (or the host's secrets) set `DATABASE_URL` to the new database and `WORKER_IN_PROCESS=false`.
+4. Run the web app (`npm run dev` / `npm start`) and the worker (`npm run worker`) as two processes. Restarting the web app no longer interrupts alerts or the live feeds.
+
+## Monitoring the live feeds
+
+The worker checks the launch feed and the smart-wallet feed every minute. `GET /api/health` reports `feeds.status` (`ok` / `down`) and when it was last checked; admins with Telegram connected get a message when a feed goes down and when it is back (with the gap length). The last 20 gaps are kept in `app_settings` (`feed_health`): launches inside a gap are missing from dev scores.
 
 ## Step by step
 
@@ -20,8 +35,9 @@ PGlite (embedded DB) is for local development only; production refuses to start 
 4. **Deploy the worker** (preferred over cron): same repo and env vars, start command `npm run worker`. Multiple workers are safe (SKIP LOCKED + dedup keys). If you run the worker, you may remove the Vercel cron.
 5. **Admin account**: sign up with `BOOTSTRAP_ADMIN_EMAIL`; verify the email.
 6. **Stripe**: create products/prices; paste Price IDs in Admin → Pricing. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` with events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, `customer.subscription.resumed`, `invoice.paid`, `invoice.payment_failed`. Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Enable the Customer Portal (plan switching, cancellation, payment methods). Test with `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and test cards before going live.
+7. **Crypto payments (optional)**: set `SOLANA_PAY_RECIPIENT` to a Solana wallet you control (public address only) and `HELIUS_API_KEY`. Users pay USDC or SOL via Solana Pay; the worker confirms each payment on-chain (job `billing.crypto`, every 15s) and extends their prepaid plan. Make sure the wallet has a USDC token account (receive any USDC once) so USDC payments are not rejected. Test with a small real payment on a cheap plan before going live.
 7. **Email**: set `RESEND_API_KEY` and `EMAIL_FROM` on a verified domain.
-8. **Optional**: `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `HELIUS_API_KEY`, `ALCHEMY_API_KEY`, `GOPLUS_APP_KEY/SECRET`.
+8. **Optional**: `TELEGRAM_BOT_TOKEN`, `HELIUS_API_KEY` (strongly recommended: launches, holders, sell simulation, wallets), `GOPLUS_APP_KEY/SECRET`.
 9. **Domain & HTTPS**: add your domain in the host; HTTPS is automatic on Vercel/Render/Railway. Session cookies are `Secure` in production.
 
 ## Production smoke test

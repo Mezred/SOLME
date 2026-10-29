@@ -7,12 +7,10 @@ export interface ScoringSettings {
   thresholds: {
     min_liquidity_usd: number;
     min_volume_h24_usd: number;
-    signal_min_score: number;
-    signal_min_confidence: number;
-    dedup_hours: number;
-    rescore_delta: number;
+    /** Bullish patterns below this AI score are not eligible. */
+    min_score: number;
+    min_confidence: number;
     stale_after_minutes: number;
-    signal_ttl_hours: number;
   };
 }
 

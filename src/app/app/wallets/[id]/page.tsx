@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { UntrackWallet } from "@/components/app/wallet-forms";
+import { WalletScoreCard, type WalletScoreRow } from "@/components/app/wallet-score";
 import { WalletTxTable, type WalletTxRow } from "@/components/app/wallet-tx-table";
 import { Badge, Card, CardHeader, ChainBadge, EmptyState, Notice, PageHeader, Stat } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
@@ -38,10 +39,11 @@ export default async function WalletPage({ params }: PageProps<"/app/wallets/[id
         WHERE x.wallet_id = $1 AND x.token_address IS NOT NULL GROUP BY x.token_address ORDER BY last DESC LIMIT 30`,
       [id],
     );
-    return { w, txs, exposure };
+    const [score] = await tx.query<WalletScoreRow>("SELECT * FROM wallet_scores WHERE wallet_id = $1", [id]);
+    return { w, txs, exposure, score: score ?? null };
   });
   if (!data) notFound();
-  const { w, txs, exposure } = data;
+  const { w, txs, exposure, score } = data;
   const provider = walletProviderFor(w.chain as ChainId);
   const buys = txs.filter((t) => t.direction === "buy" || t.direction === "transfer_in").length;
   const sells = txs.filter((t) => t.direction === "sell" || t.direction === "transfer_out").length;
@@ -65,7 +67,7 @@ export default async function WalletPage({ params }: PageProps<"/app/wallets/[id
         )}
       </div>
       {(!provider || !provider.configured()) && (
-        <div className="mb-4"><Notice tone="warn">{provider ? `${provider.name} is not configured — set ${provider.name === "helius" ? "HELIUS_API_KEY" : "ALCHEMY_API_KEY"} to sync this wallet.` : "No wallet-activity provider supports this chain yet."}</Notice></div>
+        <div className="mb-4"><Notice tone="warn">{provider ? `${provider.name} is not configured — set HELIUS_API_KEY to sync this wallet.` : "No wallet-activity provider supports this chain yet."}</Notice></div>
       )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Recorded transactions" value={txs.length} />
@@ -73,7 +75,12 @@ export default async function WalletPage({ params }: PageProps<"/app/wallets/[id
         <Stat label="Outflows" value={sells} sub="sells + transfers out" tone="down" />
         <Stat label="Last synced" value={w.last_synced_at ? timeAgo(w.last_synced_at) : "never"} />
       </div>
-      <p className="mt-2 text-xs text-fg-faint">Performance estimates are not shown: reliable cost basis requires complete historical pricing for every transfer, which the configured providers do not supply.</p>
+      {(
+        <>
+          <p className="mt-2 text-xs text-fg-faint">The counts above come from recorded transfers. The score below is computed separately from the wallet&apos;s own swaps.</p>
+          <div className="mt-4"><WalletScoreCard s={score} /></div>
+        </>
+      )}
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
         <Card>
           <CardHeader title="Token exposure (recorded window)" subtitle="Net of recorded inflows and outflows — not a balance" />

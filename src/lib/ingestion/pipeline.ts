@@ -1,14 +1,16 @@
 import { CHAINS, isChainId, type ChainId } from "@/lib/chains";
 import { query, queryOne, transaction, type Queryable } from "@/lib/db";
 import { env } from "@/lib/env";
+import { readableLabel } from "@/lib/format";
 import { errorMessage, logger } from "@/lib/log";
 import { dexscreener } from "@/lib/providers/dexscreener";
 import { geckoterminal } from "@/lib/providers/geckoterminal";
 import { goplus } from "@/lib/providers/goplus";
 import type { Candle, DiscoveryCandidate, MarketPairData, SecurityReport } from "@/lib/providers/types";
 import { scoreToken, type ScoringResult } from "@/lib/scoring/engine";
+import { BULLISH_ELIGIBLE_SQL } from "@/lib/scoring/stored";
 import { getSetting } from "@/lib/settings";
-import { MIN_STORE_LIQUIDITY_USD, spamReason } from "./spam";
+import { spamReason, worthStoring } from "./spam";
 
 const log = logger("ingestion");
 
@@ -21,7 +23,6 @@ export interface CycleStats {
   spam: number;
   securityChecked: number;
   scored: number;
-  signalsCreated: number;
   errors: string[];
   /** 24h change of each chain's wrapped native asset (market-regime context). */
   regime?: Record<string, number | null>;
@@ -30,7 +31,10 @@ export interface CycleStats {
 /** GoPlus answers one token per request at ~25 req/min, so checks are bounded per chain per cycle. */
 const SECURITY_PER_CYCLE = 15;
 
-const PRIORITY: Record<string, number> = { watchlist: 0, active_signal: 1, trending: 2, new_pool: 3, profile: 4, boosted: 5 };
+// "launchpad" = organic traction on a bonding curve (see launchpadCandidates); ranked with trending.
+const PRIORITY: Record<string, number> = { watchlist: 0, early: 1, launchpad: 2, trending: 2, new_pool: 3, profile: 4, boosted: 5 };
+/** Every enabled chain gets at least this many discovery slots per cycle before the rest go by priority. */
+const MIN_PER_CHAIN = 10;
 
 /** Upserts token, pair and a fresh snapshot. Returns ids. */
 export async function storeMarketData(
@@ -51,12 +55,14 @@ export async function storeMarketData(
        updated_at = now()
      RETURNING id`,
     [
-      p.chain, p.tokenAddress, p.symbol, p.name, p.logoUrl, p.pairCreatedAt, Boolean(spam), spam, extra.isDemo ?? false,
+      p.chain, p.tokenAddress, readableLabel(p.symbol, p.tokenAddress), readableLabel(p.name, p.tokenAddress), p.logoUrl, p.pairCreatedAt, Boolean(spam), spam, extra.isDemo ?? false,
       JSON.stringify({
         websites: p.websites.slice(0, 5),
         socials: p.socials.slice(0, 8),
         promoted: p.promoted,
         ...(extra.discoveryReason ? { discovery: extra.discoveryReason } : {}),
+        // Original on-chain labels when they were unreadable (see readableLabel).
+        ...(readableLabel(p.symbol, p.tokenAddress) !== p.symbol.trim() ? { original_symbol: p.symbol, original_name: p.name } : {}),
       }),
     ],
   );
@@ -70,13 +76,15 @@ export async function storeMarketData(
   );
   const [snap] = await tx.query<{ id: number }>(
     `INSERT INTO market_snapshots (token_id, pair_id, source, price_usd, price_change_m5, price_change_h1, price_change_h6, price_change_h24, price_change_d7,
-       volume_m5, volume_h1, volume_h6, volume_h24, liquidity_usd, market_cap, fdv, buys_m5, sells_m5, buys_h1, sells_h1, buys_h24, sells_h24, holder_count, is_demo)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id`,
+       volume_m5, volume_h1, volume_h6, volume_h24, liquidity_usd, market_cap, fdv, buys_m5, sells_m5, buys_h1, sells_h1, buys_h24, sells_h24, holder_count, is_demo,
+       buys_h6, sells_h6)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING id`,
     [
       token.id, pair.id, p.source, p.priceUsd, p.priceChange.m5, p.priceChange.h1, p.priceChange.h6, p.priceChange.h24, p.priceChange.d7,
       p.volume.m5, p.volume.h1, p.volume.h6, p.volume.h24, p.liquidityUsd, p.marketCap, p.fdv,
       p.txns.m5?.buys ?? null, p.txns.m5?.sells ?? null, p.txns.h1?.buys ?? null, p.txns.h1?.sells ?? null,
       p.txns.h24?.buys ?? null, p.txns.h24?.sells ?? null, extra.holderCount ?? null, extra.isDemo ?? false,
+      p.txns.h6?.buys ?? null, p.txns.h6?.sells ?? null,
     ],
   );
   return { tokenId: token.id, pairId: pair.id, snapshotId: snap.id };
@@ -124,50 +132,12 @@ async function smartMoneyActivity(chain: ChainId, address: string) {
   return { labeledBuyers: row.buyers, labeledSellers: row.sellers };
 }
 
-/** Persists a signal unless an equivalent one already exists in the dedup window. */
-export async function maybeCreateSignal(
-  tokenId: string,
-  chain: ChainId,
-  snapshotId: number,
-  price: number | null,
-  result: ScoringResult,
-  opts: { dedupHours: number; rescoreDelta: number; ttlHours: number; isDemo?: boolean; now?: Date },
-): Promise<string | null> {
-  if (!result.eligibility.eligible || !result.signalType) return null;
-  const now = opts.now ?? new Date();
-  const prev = await queryOne<{ ai_score: number }>(
-    `SELECT ai_score FROM signals WHERE token_id = $1 AND signal_type = $2 AND created_at > $3::timestamptz - make_interval(hours => $4)
-     ORDER BY created_at DESC LIMIT 1`,
-    [tokenId, result.signalType, now, opts.dedupHours],
-  );
-  if (prev && result.aiScore - prev.ai_score < opts.rescoreDelta) return null;
-
-  const bucket = Math.floor(now.getTime() / (opts.dedupHours * 3_600_000));
-  const dedupKey = `${tokenId}:${result.signalType}:${bucket}${prev ? `:r${result.aiScore}` : ""}`;
-  return transaction(async (tx) => {
-    const s = result.scenario;
-    const [row] = await tx.query<{ id: string }>(
-      `INSERT INTO signals (token_id, chain, snapshot_id, signal_type, strength, ai_score, quality_score, momentum_score, risk_score, confidence_score,
-         price_at_signal, entry_low, entry_high, invalidation, stop_loss, take_profits, rationale, risk_flags, missing_data, scoring_version,
-         dedup_key, is_demo, created_at, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23, $23::timestamptz + make_interval(hours => $24))
-       ON CONFLICT (dedup_key) DO NOTHING RETURNING id`,
-      [
-        tokenId, chain, snapshotId, result.signalType, result.strength, result.aiScore, result.qualityScore, result.momentumScore,
-        result.riskScore, result.confidenceScore, price, s?.entryLow ?? null, s?.entryHigh ?? null, s?.invalidation ?? null,
-        s?.stopLoss ?? null, s ? JSON.stringify(s.takeProfits) : null, result.rationale, result.riskFlags, result.missingData,
-        result.version, dedupKey, opts.isDemo ?? false, now, opts.ttlHours,
-      ],
-    );
-    if (!row) return null;
-    for (const f of result.factors) {
-      await tx.query(
-        `INSERT INTO signal_factors (signal_id, factor_key, category, score, weight, evidence, reason, missing) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [row.id, f.key, f.category, f.score, f.weight, JSON.stringify(f.evidence), f.reason, f.missing],
-      );
-    }
-    return row.id;
-  });
+/** Stores the latest score on the token (read by the screener, token pages and the pre-buy check). */
+export async function saveScore(tokenId: string, result: ScoringResult, now: Date) {
+  await query("UPDATE token_assets SET metadata = metadata || $2::jsonb WHERE id = $1", [
+    tokenId,
+    JSON.stringify({ last_score: { ai: result.aiScore, quality: result.qualityScore, momentum: result.momentumScore, risk: result.riskScore, confidence: result.confidenceScore, type: result.signalType, eligible: result.eligibility.eligible, at: now.toISOString() } }),
+  ]);
 }
 
 async function nativeRegime(chains: ChainId[]): Promise<Map<ChainId, number | null>> {
@@ -184,9 +154,6 @@ async function priorityTokens(): Promise<DiscoveryCandidate[]> {
   const rows = await query<{ chain: string; address: string; reason: string }>(
     `SELECT DISTINCT t.chain, t.address, 'watchlist' AS reason FROM watchlist_items wi JOIN token_assets t ON t.id = wi.token_id WHERE NOT t.is_demo
      UNION
-     SELECT DISTINCT t.chain, t.address, 'active_signal' FROM signals s JOIN token_assets t ON t.id = s.token_id
-      WHERE s.created_at > now() - interval '25 hours' AND NOT s.is_demo
-     UNION
      SELECT DISTINCT t.chain, t.address, 'watchlist' FROM positions p JOIN token_assets t ON t.id = p.token_id WHERE p.status = 'open' AND NOT t.is_demo
      LIMIT 300`,
   );
@@ -198,18 +165,64 @@ async function priorityTokens(): Promise<DiscoveryCandidate[]> {
   }));
 }
 
+/**
+ * Picks this cycle's tokens. User-priority tokens (watchlists, open positions, eligible bullish coins) always go
+ * first. Then each chain gets a guaranteed minimum (round-robin, its own priority order), so busy chains
+ * cannot crowd out small ones; the remaining budget goes by priority across all chains, so busy chains
+ * still get the larger share. `sorted` must already be priority-sorted.
+ */
+export function allocateCandidates(sorted: DiscoveryCandidate[], chains: ChainId[], max: number, minPerChain = MIN_PER_CHAIN): DiscoveryCandidate[] {
+  const isPinned = (c: DiscoveryCandidate) => (PRIORITY[c.reason] ?? 9) <= PRIORITY.early;
+  const out = sorted.filter(isPinned).slice(0, max);
+  const taken = new Set(out);
+  const floor = Math.min(minPerChain, Math.floor((max - out.length) / Math.max(1, chains.length)));
+  const queues = chains.map((ch) => sorted.filter((c) => c.chain === ch && !isPinned(c)));
+  const take = (c: DiscoveryCandidate) => {
+    out.push(c);
+    taken.add(c);
+  };
+  for (let i = 0; i < floor; i++) {
+    for (const q of queues) if (i < q.length && out.length < max) take(q[i]);
+  }
+  for (const c of sorted) {
+    if (out.length >= max) break;
+    if (!taken.has(c)) take(c);
+  }
+  return out;
+}
+
+/** Launchpad tokens (pump.fun, LetsBonk) with organic traction: far along the curve, or just migrated. */
+async function launchpadCandidates(chains: ChainId[]): Promise<DiscoveryCandidate[]> {
+  const enabled = chains;
+  if (!enabled.length) return [];
+  const rows = await query<{ mint: string; chain: ChainId }>(
+    `SELECT mint, chain FROM launchpad_tokens
+      WHERE chain = ANY($1) AND source = 'stream' AND (
+            (NOT complete AND migrated_at IS NULL AND progress >= 0.5 AND created_at > now() - interval '6 hours')
+         OR ((complete OR migrated_at IS NOT NULL) AND created_at > now() - interval '24 hours'))
+      ORDER BY COALESCE(migrated_at, updated_at) DESC LIMIT 30`,
+    [enabled],
+  );
+  return rows.map((r) => ({ chain: r.chain, address: r.mint, reason: "launchpad" as const, source: "launchpad" }));
+}
+
 /** One centralized ingestion cycle shared by all users. */
 export async function runIngestionCycle(): Promise<CycleStats> {
   const settings = await getSetting("ingestion");
   const scoring = await getSetting("scoring");
   const stats: CycleStats = {
     startedAt: new Date().toISOString(), candidates: 0, tokensFetched: 0, stored: 0, spam: 0,
-    securityChecked: 0, scored: 0, signalsCreated: 0, errors: [],
+    securityChecked: 0, scored: 0, errors: [],
   };
   if (!settings.enabled || env.demoMode) return stats;
   const chains = settings.chains.filter(isChainId);
 
   const found: DiscoveryCandidate[] = [...(await priorityTokens())];
+  try {
+    found.push(...(await launchpadCandidates(chains)));
+  } catch (err) {
+    stats.errors.push(`launchpad discovery: ${errorMessage(err)}`);
+  }
   for (const p of [dexscreener, geckoterminal]) {
     try {
       found.push(...(await p.discover(chains)));
@@ -222,7 +235,7 @@ export async function runIngestionCycle(): Promise<CycleStats> {
     const key = `${c.chain}:${c.address}`;
     if (!unique.has(key) && c.address !== CHAINS[c.chain].wrappedNative) unique.set(key, c);
   }
-  const candidates = [...unique.values()].slice(0, settings.max_tokens_per_cycle);
+  const candidates = allocateCandidates([...unique.values()], chains, settings.max_tokens_per_cycle);
   stats.candidates = candidates.length;
 
   const regime = await nativeRegime(chains);
@@ -244,7 +257,7 @@ export async function runIngestionCycle(): Promise<CycleStats> {
 
     const stored: { p: MarketPairData; tokenId: string; snapshotId: number; spam: string | null }[] = [];
     for (const p of pairs) {
-      if ((p.liquidityUsd ?? 0) < MIN_STORE_LIQUIDITY_USD) continue;
+      if (!worthStoring(p)) continue;
       const spam = spamReason(p);
       if (spam) stats.spam++;
       try {
@@ -259,17 +272,32 @@ export async function runIngestionCycle(): Promise<CycleStats> {
     // Security: refresh only when older than the TTL (1h for "unavailable" results), only for non-spam tokens
     // with tradable liquidity, and at most SECURITY_PER_CYCLE per chain — the rest carry over to the next cycle.
     const needSecurity: typeof stored = [];
+    const neverChecked = new Set<string>();
     for (const s of stored) {
       if (s.spam || (s.p.liquidityUsd ?? 0) < scoring.thresholds.min_liquidity_usd) continue;
       const last = await latestSecurity(s.tokenId);
       const ttlMs = last?.status === "unavailable" ? 3_600_000 : settings.security_ttl_hours * 3_600_000;
+      if (!last) neverChecked.add(s.tokenId);
       if (!last || now.getTime() - new Date(last.checked_at).getTime() > ttlMs) needSecurity.push(s);
     }
-    needSecurity.sort((a, b) => (b.p.liquidityUsd ?? 0) - (a.p.liquidityUsd ?? 0)).splice(SECURITY_PER_CYCLE);
+    // The budget is limited (GoPlus rate limits): check tokens traders are looking at first — eligible bullish
+    // patterns — then tokens never checked, then by liquidity. An unverified contract blocks a pre-buy verdict.
+    const bullish = new Set(
+      needSecurity.length
+        ? (await query<{ id: string }>(
+            `SELECT t.id FROM token_assets t WHERE t.id = ANY($1) AND ${BULLISH_ELIGIBLE_SQL}
+               AND (t.metadata->'last_score'->>'at')::timestamptz > now() - interval '25 hours'`,
+            [needSecurity.map((s) => s.tokenId)],
+          )).map((r) => r.id)
+        : [],
+    );
+    const rank = (s: (typeof stored)[number]) => (bullish.has(s.tokenId) ? 2 : 0) + (neverChecked.has(s.tokenId) ? 1 : 0);
+    needSecurity.sort((a, b) => rank(b) - rank(a) || (b.p.liquidityUsd ?? 0) - (a.p.liquidityUsd ?? 0)).splice(SECURITY_PER_CYCLE);
     if (needSecurity.length) {
       try {
         const reports = await goplus.check(chain, needSecurity.map((s) => s.p.tokenAddress), {
           excludeHolders: needSecurity.map((s) => s.p.pairAddress),
+          pools: Object.fromEntries(needSecurity.map((s) => [s.p.tokenAddress, s.p.pairAddress])),
         });
         for (const s of needSecurity) {
           const r = reports.get(s.p.tokenAddress);
@@ -309,20 +337,10 @@ export async function runIngestionCycle(): Promise<CycleStats> {
         }
       }
       stats.scored++;
-      const signalId = await maybeCreateSignal(s.tokenId, chain, s.snapshotId, s.p.priceUsd, result, {
-        dedupHours: scoring.thresholds.dedup_hours,
-        rescoreDelta: scoring.thresholds.rescore_delta,
-        ttlHours: scoring.thresholds.signal_ttl_hours,
-      });
-      if (signalId) stats.signalsCreated++;
-      await query(
-        `UPDATE token_assets SET metadata = metadata || $2 WHERE id = $1`,
-        [s.tokenId, JSON.stringify({ last_score: { ai: result.aiScore, quality: result.qualityScore, momentum: result.momentumScore, risk: result.riskScore, confidence: result.confidenceScore, type: result.signalType, at: now.toISOString() } })],
-      );
+      await saveScore(s.tokenId, result, now);
     }
   }
 
-  await query("UPDATE signals SET status = 'expired' WHERE status = 'active' AND expires_at < now()");
   stats.finishedAt = new Date().toISOString();
   await query(
     `INSERT INTO app_settings (key, value, updated_at) VALUES ('ingestion_status', $1, now())
@@ -331,49 +349,6 @@ export async function runIngestionCycle(): Promise<CycleStats> {
   );
   log.info("Ingestion cycle complete", { ...stats, errors: stats.errors.length });
   return stats;
-}
-
-/** Fills signal_history from snapshots observed after each signal — outcomes are measured, never estimated. */
-export async function trackSignalOutcomes() {
-  const open = await query<{ id: string; token_id: string; created_at: Date; price_at_signal: number | null; invalidation: number | null; take_profits: { price: number }[] | null }>(
-    `SELECT s.id, s.token_id, s.created_at, s.price_at_signal, s.invalidation, s.take_profits
-       FROM signals s LEFT JOIN signal_history h ON h.signal_id = s.id
-      WHERE s.price_at_signal IS NOT NULL AND (h.signal_id IS NULL OR NOT h.is_final)
-        AND s.created_at > now() - interval '3 days'
-      LIMIT 500`,
-  );
-  for (const s of open) {
-    const at = (hours: number) =>
-      queryOne<{ price_usd: number }>(
-        `SELECT price_usd FROM market_snapshots WHERE token_id = $1 AND captured_at BETWEEN $2::timestamptz + make_interval(hours => $3) AND $2::timestamptz + make_interval(hours => $3, mins => 45)
-         ORDER BY captured_at LIMIT 1`,
-        [s.token_id, s.created_at, hours],
-      );
-    const [p1, p6, p24] = await Promise.all([at(1), at(6), at(24)]);
-    const range = await queryOne<{ max: number | null; min: number | null }>(
-      `SELECT max(price_usd) AS max, min(price_usd) AS min FROM market_snapshots
-        WHERE token_id = $1 AND captured_at > $2 AND captured_at <= $2::timestamptz + interval '24 hours'`,
-      [s.token_id, s.created_at],
-    );
-    const ret = (p: { price_usd: number } | null) => (p && s.price_at_signal ? ((p.price_usd - s.price_at_signal) / s.price_at_signal) * 100 : null);
-    const tp1 = s.take_profits?.[0]?.price ?? null;
-    const final = Date.now() - new Date(s.created_at).getTime() > 25 * 3_600_000;
-    await query(
-      `INSERT INTO signal_history (signal_id, price_1h, price_6h, price_24h, return_1h, return_6h, return_24h, max_price, min_price, hit_take_profit, hit_invalidation, is_final, evaluated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
-       ON CONFLICT (signal_id) DO UPDATE SET price_1h = EXCLUDED.price_1h, price_6h = EXCLUDED.price_6h, price_24h = EXCLUDED.price_24h,
-         return_1h = EXCLUDED.return_1h, return_6h = EXCLUDED.return_6h, return_24h = EXCLUDED.return_24h, max_price = EXCLUDED.max_price,
-         min_price = EXCLUDED.min_price, hit_take_profit = EXCLUDED.hit_take_profit, hit_invalidation = EXCLUDED.hit_invalidation,
-         is_final = EXCLUDED.is_final, evaluated_at = now()`,
-      [s.id, p1?.price_usd ?? null, p6?.price_usd ?? null, p24?.price_usd ?? null, ret(p1), ret(p6), ret(p24), range?.max ?? null, range?.min ?? null,
-        tp1 !== null && range?.max != null ? range.max >= tp1 : null,
-        s.invalidation !== null && range?.min != null ? range.min <= s.invalidation : null, final],
-    );
-    if (s.invalidation !== null && range?.min != null && range.min <= s.invalidation) {
-      await query("UPDATE signals SET status = 'invalidated' WHERE id = $1 AND status = 'active'", [s.id]);
-    }
-  }
-  return open.length;
 }
 
 export async function pruneOldData() {

@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   // The dashboard is per-user and request-time; we use the classic dynamic
   // rendering model rather than Cache Components.
   cacheComponents: false,
+  experimental: {
+    // The persisted dev cache (.next/dev/cache/turbopack) got corrupted by interrupted dev servers and then made
+    // Turbopack send endless "restart" updates, reloading every open page. A cold start is only a few seconds.
+    turbopackFileSystemCacheForDev: false,
+  },
   // PGlite ships WASM + data files and pg uses native-ish optional deps; keep them out of the bundle.
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   poweredByHeader: false,

@@ -22,11 +22,12 @@ export interface MarketPairData {
   txns: {
     m5: { buys: number; sells: number } | null;
     h1: { buys: number; sells: number } | null;
+    h6: { buys: number; sells: number } | null;
     h24: { buys: number; sells: number } | null;
   };
   websites: string[];
   socials: { type: string; url: string }[];
-  /** True when the listing has paid promotion (e.g. DexScreener boosts). Promotion is not a quality signal. */
+  /** True when the listing has paid promotion (e.g. DexScreener boosts). Promotion is not a sign of quality. */
   promoted: boolean;
   source: string;
 }
@@ -45,7 +46,7 @@ export type CandleTimeframe = "15m" | "1h" | "4h" | "1d";
 export interface DiscoveryCandidate {
   chain: ChainId;
   address: string;
-  reason: "trending" | "new_pool" | "boosted" | "profile";
+  reason: "trending" | "new_pool" | "boosted" | "profile" | "launchpad";
   source: string;
 }
 
@@ -102,7 +103,8 @@ export interface CandleProvider {
 
 export interface SecurityProvider {
   name: string;
-  check(chain: ChainId, addresses: string[], context?: { excludeHolders?: string[] }): Promise<Map<string, SecurityReport>>;
+  /** `pools`: token address → its main pool (Solana LP burned/locked check). */
+  check(chain: ChainId, addresses: string[], context?: { excludeHolders?: string[]; pools?: Record<string, string> }): Promise<Map<string, SecurityReport>>;
 }
 
 export interface WalletActivityProvider {

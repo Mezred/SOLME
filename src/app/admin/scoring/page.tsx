@@ -12,8 +12,8 @@ export default async function AdminScoring() {
   const s = await getSetting("scoring");
   return (
     <>
-      <PageHeader title="Scoring weights & thresholds" description="Weights are relative (renormalized over available factors). Bump the version when you change methodology — every signal stores the version that produced it." />
-      <div className="mb-4"><Notice tone="info">Changes apply from the next ingestion cycle. Existing signals keep their original scores and version.</Notice></div>
+      <PageHeader title="Scoring weights & thresholds" description="Weights are relative (renormalized over available factors). Bump the version when you change methodology — every score stores the version that produced it." />
+      <div className="mb-4"><Notice tone="info">Changes apply from the next ingestion cycle; each token is re-scored when it is next ingested.</Notice></div>
       <JsonSettingsForm endpoint="/api/admin/settings/scoring" initial={s as never} />
       <Card className="mt-4">
         <CardHeader title="Factor reference" />

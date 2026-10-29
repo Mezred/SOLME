@@ -1,12 +1,12 @@
 /**
- * NEXALPHA deterministic scoring engine (pure functions, no I/O).
+ * SOLME deterministic scoring engine (pure functions, no I/O).
  *
  * Design rules:
  *  - Every factor returns a 0–100 score (higher = more favourable) or null when its inputs are missing.
  *    Missing factors are excluded and the remaining weights are renormalized — never imputed.
  *  - Quality, momentum, security risk and confidence are reported separately; the headline AI score is
  *    their documented combination, capped/penalized by security risk.
- *  - A signal is never emitted because price is rising alone: bullish types require buy pressure,
+ *  - A bullish pattern is never assigned because price is rising alone: bullish types require buy pressure,
  *    volume confirmation, minimum liquidity and acceptable security.
  *  - The LLM never computes scores; it only explains the evidence produced here.
  */
@@ -83,7 +83,7 @@ export interface ScoringResult {
 
 /** Documentation for the methodology page and admin weight editor. */
 export const FACTOR_DOCS: Record<string, { label: string; category: FactorCategory; description: string; inputs: string }> = {
-  price_momentum: { label: "Price momentum", category: "momentum", description: "Blended 1h/6h/24h change. Rewards steady positive trend; parabolic moves (>50% in 1h, >150% in 6h or >300% in 24h) are capped, flagged as overextended and cannot produce a bullish signal.", inputs: "priceChange h1, h6, h24" },
+  price_momentum: { label: "Price momentum", category: "momentum", description: "Blended 1h/6h/24h change. Rewards steady positive trend; parabolic moves (>50% in 1h, >150% in 6h or >300% in 24h) are capped, flagged as overextended and cannot produce a bullish pattern.", inputs: "priceChange h1, h6, h24" },
   volume_acceleration: { label: "Volume acceleration", category: "momentum", description: "Last-hour volume relative to the 24h hourly average (log2 ratio).", inputs: "volume h1, h24" },
   buy_sell_imbalance: { label: "Buy/sell imbalance", category: "momentum", description: "Share of buy transactions over the last hour (weighted 70%) and 24h (30%). Requires ≥20 transactions. Counts transactions, not size: many small buys can coexist with large sells.", inputs: "txns h1, h24" },
   smart_money: { label: "Smart Money flow", category: "momentum", description: "Net buyers among wallets with a documented classification. Excluded when no wallet data source is configured.", inputs: "labeled wallet transactions" },
@@ -98,7 +98,7 @@ export const FACTOR_DOCS: Record<string, { label: string; category: FactorCatego
 
 /** Pools at least this deep are not treated as "thin" relative to market cap. */
 export const DEEP_LIQUIDITY_USD = 1_000_000;
-/** Bullish signals are not issued for pairs younger than this; they are listed under New Launches instead. */
+/** Bullish patterns are not eligible for pairs younger than this; they are listed under New Launches instead. */
 export const MIN_SIGNAL_AGE_HOURS = 1;
 
 /** Parabolic in any window: these moves are flagged and never rewarded beyond a capped score. */
@@ -335,7 +335,7 @@ export function scoreToken(input: ScoringInput, settings: ScoringSettings): Scor
   if (byKey.price_momentum?.evidence.overextended) { risk += 10; riskFlags.push(`Overextended: 1h ${fmtPct(m.priceChange.h1 ?? 0)}, 24h ${fmtPct(m.priceChange.h24 ?? 0)}`); }
   const lr = byKey.liquidity_to_mcap?.evidence.ratio_pct as number | undefined;
   if (lr !== undefined && lr < 1 && !byKey.liquidity_to_mcap?.evidence.deep_pool) { risk += 10; riskFlags.push("Thin liquidity relative to market cap"); }
-  if (m.promoted) riskFlags.push("Paid promotion active on DexScreener (not a quality signal)");
+  if (m.promoted) riskFlags.push("Paid promotion active on DexScreener (not a sign of quality)");
   const stale = (input.now.getTime() - input.capturedAt.getTime()) / 60_000 > th.stale_after_minutes;
   if (stale) riskFlags.push("Market data is stale");
   const riskScore = round(clamp(risk));
@@ -382,17 +382,17 @@ export function scoreToken(input: ScoringInput, settings: ScoringSettings): Scor
   else if (aiScore >= 68 && confidenceScore >= 55) strength = "moderate";
   else strength = "weak";
 
-  // ── eligibility to be published as a signal ──
+  // ── eligibility: whether the pattern is trustworthy enough to act on ──
   const reasons: string[] = [];
   if (!signalType) reasons.push("No qualifying pattern");
   if (stale) reasons.push("Stale data");
   if (m.liquidityUsd === null || m.liquidityUsd < th.min_liquidity_usd) reasons.push("Below minimum liquidity");
   if (m.volume.h24 === null || m.volume.h24 < th.min_volume_h24_usd) reasons.push("Below minimum 24h volume");
-  if (confidenceScore < th.signal_min_confidence) reasons.push("Confidence below threshold");
+  if (confidenceScore < th.min_confidence) reasons.push("Confidence below threshold");
   const bullish = signalType === "momentum" || signalType === "accumulation" || signalType === "breakout_watch";
-  if (bullish && aiScore < th.signal_min_score) reasons.push("Score below threshold");
+  if (bullish && aiScore < th.min_score) reasons.push("Score below threshold");
   if (bullish && (secLevel === "high")) reasons.push("High security risk");
-  if (bullish && (ageH === null || ageH < MIN_SIGNAL_AGE_HOURS)) reasons.push("Pair too new for a bullish signal");
+  if (bullish && (ageH === null || ageH < MIN_SIGNAL_AGE_HOURS)) reasons.push("Pair too new for a bullish pattern");
   if (bullish && byKey.price_momentum?.evidence.overextended) reasons.push("Overextended move");
   const eligible = reasons.length === 0;
 

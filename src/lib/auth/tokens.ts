@@ -10,9 +10,9 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-type Purpose = "verify_email" | "reset_password";
+type Purpose = "verify_email" | "reset_password" | "telegram_link";
 
-const TTL_MINUTES: Record<Purpose, number> = { verify_email: 60 * 24, reset_password: 30 };
+const TTL_MINUTES: Record<Purpose, number> = { verify_email: 60 * 24, reset_password: 30, telegram_link: 15 };
 
 export async function issueAuthToken(userId: string, purpose: Purpose): Promise<string> {
   const token = randomToken();

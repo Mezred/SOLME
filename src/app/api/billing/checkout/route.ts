@@ -24,6 +24,9 @@ export const POST = api(async (req) => {
   if (ent.subscription?.source === "stripe" && ["active", "trialing", "past_due"].includes(ent.subscription.status)) {
     throw badRequest("You already have an active subscription — change plans from the Billing page instead.");
   }
+  if (ent.subscription?.source === "crypto") {
+    throw badRequest("You have a prepaid crypto plan. Extend it with crypto, or subscribe by card after it ends.");
+  }
   const existing = await queryOne<{ provider_customer_id: string }>(
     "SELECT provider_customer_id FROM subscriptions WHERE user_id = $1 AND provider_customer_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
     [user.id],

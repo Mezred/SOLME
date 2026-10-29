@@ -6,12 +6,10 @@ import { cx } from "@/components/ui";
 
 /**
  * Re-fetches the server-rendered page on an interval while the tab is visible.
- * Optionally listens to the signal SSE stream and refreshes immediately when new signals land.
  */
-export function AutoRefresh({ seconds = 60, stream = false }: { seconds?: number; stream?: boolean }) {
+export function AutoRefresh({ seconds = 60 }: { seconds?: number }) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(true);
-  const [fresh, setFresh] = useState(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -20,19 +18,6 @@ export function AutoRefresh({ seconds = 60, stream = false }: { seconds?: number
     }, seconds * 1000);
     return () => clearInterval(id);
   }, [enabled, seconds, router]);
-
-  useEffect(() => {
-    if (!stream || !enabled || typeof EventSource === "undefined") return;
-    const es = new EventSource("/api/stream/signals");
-    es.addEventListener("signals", (e) => {
-      const n = Number((e as MessageEvent).data) || 0;
-      if (n > 0) {
-        setFresh((f) => f + n);
-        router.refresh();
-      }
-    });
-    return () => es.close();
-  }, [stream, enabled, router]);
 
   return (
     <button
@@ -44,7 +29,6 @@ export function AutoRefresh({ seconds = 60, stream = false }: { seconds?: number
     >
       <span className={cx("h-1.5 w-1.5 rounded-full", enabled ? "animate-pulse-dot bg-up" : "bg-fg-faint")} aria-hidden="true" />
       {enabled ? `Auto-refresh ${seconds}s` : "Paused"}
-      {fresh > 0 && <span className="num rounded bg-up/20 px-1">+{fresh}</span>}
     </button>
   );
 }

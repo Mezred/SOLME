@@ -70,6 +70,19 @@ export function shortAddress(a: string | null | undefined, n = 4): string {
   return a.length <= n * 2 + 3 ? a : `${a.slice(0, n + (a.startsWith("0x") ? 2 : 0))}…${a.slice(-n)}`;
 }
 
+/** Block, box-drawing and geometric-shape glyphs ("█", "▓", "■") and invisible characters that scam tokens pad names with. */
+const LABEL_JUNK = /[\u2500-\u25FF\u200B-\u200F\u2060\uFEFF]/gu;
+
+/**
+ * A token symbol/name a trader can read. Block and invisible characters are removed ("█████WIF" → "WIF"); labels left
+ * with no letter or digit in any script (e.g. "███", "???", emoji-only) become the short contract address. Chinese,
+ * Korean, accented etc. names are kept.
+ */
+export function readableLabel(label: string | null | undefined, address: string): string {
+  const v = (label ?? "").replace(LABEL_JUNK, "").replace(/\s+/g, " ").trim();
+  return /[\p{L}\p{N}]/u.test(v) ? v : shortAddress(address);
+}
+
 export function formatDateTime(d: Date | string | null | undefined): string {
   if (!d) return DASH;
   return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }) + " UTC";

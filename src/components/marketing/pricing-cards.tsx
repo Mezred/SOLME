@@ -42,7 +42,7 @@ export function PricingCards({ plans, ctaHref = "/signup", currentPlan }: { plan
           const price = annual ? p.annual : p.monthly;
           const savings = p.monthly > 0 ? Math.round((1 - p.annual / (p.monthly * 12)) * 100) : 0;
           return (
-            <div key={p.id} className={cx("card relative flex flex-col p-6", featured && "border-up/40 shadow-[0_0_60px_-30px_rgba(31,224,138,0.5)]")}>
+            <div key={p.id} className={cx("card relative flex flex-col p-6", featured && "border-up")}>
               {featured && <span className="absolute -top-2.5 left-6 rounded-md bg-up px-2 py-0.5 text-[11px] font-semibold text-ink-950">Most popular</span>}
               <h3 className="text-lg font-semibold">{p.name}</h3>
               <p className="mt-1 min-h-10 text-sm text-fg-muted">{p.description}</p>

@@ -43,7 +43,7 @@ async function main() {
     const tokens = await query<{ id: string; chain: string; address: string; symbol: string; price: number | null }>(
       `SELECT t.id, t.chain, t.address, t.symbol, (SELECT price_usd FROM market_snapshots s WHERE s.token_id = t.id ORDER BY captured_at DESC LIMIT 1) AS price
          FROM token_assets t WHERE t.is_demo = $1 AND NOT t.is_spam AND t.chain = ANY($2) ORDER BY t.updated_at DESC LIMIT 4`,
-      [env.demoMode, a.plan ? ["solana", "ethereum", "bsc", "base"] : ["solana", "base"]],
+      [env.demoMode, ["solana"]],
     );
     const wl = await queryOne<{ id: string }>("SELECT id FROM watchlists WHERE user_id = $1 ORDER BY created_at LIMIT 1", [id]);
     for (const t of tokens) {
@@ -67,8 +67,8 @@ async function main() {
     const hasAlerts = await queryOne("SELECT 1 FROM alert_rules WHERE user_id = $1", [id]);
     if (!hasAlerts) {
       await query(
-        `INSERT INTO alert_rules (user_id, name, rule_type, params, channels, cooldown_minutes) VALUES ($1, 'High-score momentum', 'signal_score', $2, '{in_app}', 60)`,
-        [id, JSON.stringify({ min_score: 70, signal_types: ["momentum", "accumulation"] })],
+        `INSERT INTO alert_rules (user_id, name, rule_type, params, channels, cooldown_minutes) VALUES ($1, 'Proven dev launches', 'dev_deploy', $2, '{in_app}', 60)`,
+        [id, JSON.stringify({ min_dev_score: 60 })],
       );
     }
     console.log(`Seeded ${a.email} (${a.plan ?? "free"})`);

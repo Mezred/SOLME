@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DeleteAccount, PasswordForm, ProfileForm, SessionActions } from "@/components/app/settings-forms";
+import { DeleteAccount, PasswordForm, ProfileForm, QuietHoursForm, SessionActions } from "@/components/app/settings-forms";
 import { Badge, Card, CardHeader, PageHeader } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 import { getEntitlements } from "@/lib/billing/entitlements";
@@ -13,8 +13,10 @@ export default async function SettingsPage() {
   const user = await requirePageUser("/app/settings");
   const [ent, profile, sessions] = await Promise.all([
     getEntitlements(user.id),
-    queryOne<{ display_name: string | null; timezone: string; notify_in_app: boolean; notify_email: boolean; notify_telegram: boolean; telegram_chat_id: string | null }>(
-      "SELECT display_name, timezone, notify_in_app, notify_email, notify_telegram, telegram_chat_id FROM profiles WHERE user_id = $1",
+    queryOne<{ display_name: string | null; timezone: string; notify_in_app: boolean; notify_email: boolean; notify_telegram: boolean; telegram_chat_id: string | null; quiet_start: string | null; quiet_end: string | null; mutes: number }>(
+      `SELECT display_name, timezone, notify_in_app, notify_email, notify_telegram, telegram_chat_id, quiet_start, quiet_end,
+              (SELECT count(*)::int FROM alert_mutes m WHERE m.user_id = p.user_id AND m.until > now()) AS mutes
+         FROM profiles p WHERE user_id = $1`,
       [user.id],
     ),
     query<{ id: string; ip: string | null; user_agent: string | null; created_at: Date; last_seen_at: Date }>(
@@ -30,7 +32,9 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader title="Profile & notifications" subtitle={<>{user.email} {user.emailVerified ? <Badge tone="up">verified</Badge> : <Badge tone="warn">unverified</Badge>}</>} />
           <div className="p-4">
+            {/* Remount when a chat gets linked from Telegram so the form shows the saved state. */}
             <ProfileForm
+              key={`${profile?.telegram_chat_id ?? "none"}:${profile?.notify_telegram ?? false}`}
               initial={{
                 displayName: profile?.display_name ?? null,
                 timezone: profile?.timezone ?? "UTC",
@@ -44,8 +48,11 @@ export default async function SettingsPage() {
               channels={ent.features.alert_channels}
             />
           </div>
+          <div className="border-t border-line p-4">
+            <QuietHoursForm initial={{ start: profile?.quiet_start ?? null, end: profile?.quiet_end ?? null }} mutes={profile?.mutes ?? 0} />
+          </div>
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader title="Password" />
             <div className="p-4"><PasswordForm /></div>
@@ -67,7 +74,7 @@ export default async function SettingsPage() {
           <Card>
             <CardHeader title="Privacy & data" />
             <div className="space-y-3 p-4 text-sm text-fg-muted">
-              <p>We store your email, hashed password, preferences, and the watchlists, positions, alerts and AI conversations you create. We never store wallet private keys or card details.</p>
+              <p>We store your email, hashed password, preferences, and the watchlists, screener templates and alerts you create. We never store wallet private keys or card details.</p>
               <DeleteAccount />
             </div>
           </Card>

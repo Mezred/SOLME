@@ -6,7 +6,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { Badge } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 
-export const metadata: Metadata = { title: { default: "Admin", template: "%s · Admin · NEXALPHA" }, robots: { index: false } };
+export const metadata: Metadata = { title: { default: "Admin", template: "%s · Admin · SOLME" }, robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {

@@ -67,7 +67,7 @@ export function LoginForm() {
   }
 
   return (
-    <Shell title="Log in" subtitle="Welcome back to the terminal." footer={<>New to NEXALPHA? <Link href="/signup" className="text-up hover:underline">Create an account</Link></>}>
+    <Shell title="Log in" subtitle="Welcome back to the terminal." footer={<>New to SOLME? <Link href="/signup" className="text-up hover:underline">Create an account</Link></>}>
       <form method="post" onSubmit={submit} className="space-y-4" noValidate>
         <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
         <Field id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
@@ -131,10 +131,10 @@ export function SignupForm() {
         <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
         <Field id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 10 characters. A passphrase works well." />
         <label className="flex items-start gap-2 text-sm text-fg-muted">
-          <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#1fe08a]" />
+          <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-0.5 h-4 w-4 accent-up" />
           <span>
             I agree to the <Link href="/terms" className="text-fg underline">Terms of Service</Link> and have read the{" "}
-            <Link href="/risk" className="text-fg underline">Risk Disclaimer</Link> and <Link href="/privacy" className="text-fg underline">Privacy Policy</Link>. I understand signals are not financial advice.
+            <Link href="/risk" className="text-fg underline">Risk Disclaimer</Link> and <Link href="/privacy" className="text-fg underline">Privacy Policy</Link>. I understand SOLME is research, not financial advice.
           </span>
         </label>
         <ErrorText error={error} />

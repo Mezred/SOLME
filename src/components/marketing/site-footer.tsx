@@ -15,7 +15,7 @@ export function SiteFooter() {
         <div className="md:col-span-2">
           <Logo />
           <p className="mt-3 max-w-sm text-sm text-fg-muted">
-            Explainable on-chain research for DEX traders on Solana, Ethereum, BNB Smart Chain and Base.
+            Explainable on-chain research for Solana memecoin traders.
           </p>
           <Disclaimer className="mt-4 max-w-sm" />
         </div>
@@ -36,7 +36,7 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs text-fg-faint sm:px-6">
-          <span>© {new Date().getFullYear()} NEXALPHA. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} SOLME. All rights reserved.</span>
           <span>Market data: DexScreener, GeckoTerminal · Security: GoPlus · Not affiliated with any exchange.</span>
         </div>
       </div>

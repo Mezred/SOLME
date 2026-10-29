@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { CHAINS, CHAIN_IDS } from "@/lib/chains";
+import { CHAIN_IDS, CHAINS } from "@/lib/chains";
 import { cx } from "@/components/ui";
 
 export function Section({ id, eyebrow, title, intro, children, className = "", as: Heading = "h2" }: { id?: string; eyebrow?: string; title: ReactNode; intro?: ReactNode; children?: ReactNode; className?: string; as?: "h1" | "h2" }) {
   return (
     <section id={id} className={cx("mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-20", className)}>
       {eyebrow && <p className="num text-xs font-medium uppercase tracking-[0.18em] text-up">{eyebrow}</p>}
-      <Heading className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight sm:text-3xl">{title}</Heading>
+      <Heading className="mt-2 max-w-3xl font-display text-3xl font-bold tracking-tight sm:text-4xl">{title}</Heading>
       {intro && <p className="mt-3 max-w-2xl text-fg-muted">{intro}</p>}
       {children && <div className="mt-10">{children}</div>}
     </section>
@@ -18,12 +18,11 @@ export function ChainStrip() {
     <div className="flex flex-wrap items-center gap-3">
       {CHAIN_IDS.map((id) => (
         <div key={id} className="flex items-center gap-2 rounded-lg border border-line bg-ink-850 px-3 py-2">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: CHAINS[id].color }} aria-hidden="true" />
+          <span className="h-2 w-2 bg-up" aria-hidden="true" />
           <span className="text-sm font-medium">{CHAINS[id].name}</span>
-          <span className="num text-[11px] text-fg-faint">{CHAINS[id].kind === "evm" ? `EVM · ${CHAINS[id].evmChainId}` : "SVM"}</span>
+          <span className="num text-[11px] text-fg-faint">pump.fun · LetsBonk · every Solana DEX</span>
         </div>
       ))}
-      <div className="rounded-lg border border-dashed border-line-strong px-3 py-2 text-sm text-fg-faint">More EVM networks via chain registry</div>
     </div>
   );
 }

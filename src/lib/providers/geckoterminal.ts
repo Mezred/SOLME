@@ -43,10 +43,13 @@ export const geckoterminal: CandleProvider & DiscoveryProvider = {
       { cacheSeconds: 300, nullOn: [404], retries: 1 },
     );
     const list = res?.data?.attributes?.ohlcv_list ?? [];
-    return list
-      .map(([time, open, high, low, close, volume]): Candle => ({ time, open, high, low, close, volume }))
-      .filter((c) => [c.open, c.high, c.low, c.close].every(Number.isFinite))
-      .sort((a, b) => a.time - b.time);
+    // The API occasionally repeats a bucket (usually the still-open one); keep one candle per timestamp.
+    const byTime = new Map<number, Candle>();
+    for (const [time, open, high, low, close, volume] of list) {
+      const c: Candle = { time, open, high, low, close, volume };
+      if ([c.open, c.high, c.low, c.close].every(Number.isFinite) && !byTime.has(time)) byTime.set(time, c);
+    }
+    return [...byTime.values()].sort((a, b) => a.time - b.time);
   },
 
   async discover(chains) {

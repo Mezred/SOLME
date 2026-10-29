@@ -3,7 +3,7 @@
 import { getDb, query } from "@/lib/db";
 import { env } from "@/lib/env";
 import { ensureDemoData } from "@/lib/demo/seed";
-import { runIngestionCycle, trackSignalOutcomes } from "@/lib/ingestion/pipeline";
+import { runIngestionCycle } from "@/lib/ingestion/pipeline";
 import { flushProviderHealth } from "@/lib/providers/health";
 
 async function main() {
@@ -14,12 +14,12 @@ async function main() {
   } else {
     const stats = await runIngestionCycle();
     console.log(JSON.stringify(stats, null, 2));
-    await trackSignalOutcomes();
   }
   await flushProviderHealth();
   const top = await query(
-    `SELECT t.chain, t.symbol, s.signal_type, s.strength, s.ai_score, s.confidence_score, s.risk_score, s.rationale
-       FROM signals s JOIN token_assets t ON t.id = s.token_id ORDER BY s.created_at DESC LIMIT 12`,
+    `SELECT chain, symbol, metadata->'last_score'->>'type' AS pattern, metadata->'last_score'->>'ai' AS ai_score,
+            metadata->'last_score'->>'eligible' AS eligible
+       FROM token_assets WHERE metadata ? 'last_score' ORDER BY metadata->'last_score'->>'at' DESC LIMIT 12`,
   );
   console.table(top);
   console.table(await query("SELECT provider, status, success_count, error_count, last_error FROM api_provider_status"));

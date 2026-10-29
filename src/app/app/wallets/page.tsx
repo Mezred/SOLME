@@ -33,13 +33,11 @@ export default async function WalletsPage() {
 
   return (
     <>
-      <PageHeader title="Whale Tracker" description={`Track public wallets (${wallets.length}/${ent.features.max_tracked_wallets}). Labels you add are private to you. NEXALPHA only shows a wallet as a whale, fund or Smart Money when that classification has a documented source.`} />
-      {(!integrations.helius || !integrations.alchemy) && (
+      <PageHeader title="Whale Tracker" description={`Track public wallets (${wallets.length}/${ent.features.max_tracked_wallets}). Labels you add are private to you. SOLME only shows a wallet as a whale, fund or Smart Money when that classification has a documented source.`} />
+      {!integrations.helius && (
         <div className="mb-4">
-          <Notice tone="warn" title="Wallet data provider not fully configured">
-            {!integrations.helius && "Solana wallet activity requires HELIUS_API_KEY. "}
-            {!integrations.alchemy && "Ethereum and Base wallet activity requires ALCHEMY_API_KEY. "}
-            BNB Smart Chain wallet transfers are not supported by the current providers. You can still track wallets; transactions appear once a provider is configured.
+          <Notice tone="warn" title="Wallet data provider not configured">
+            Solana wallet activity requires HELIUS_API_KEY. You can still track wallets; transactions appear once it is set.
           </Notice>
         </div>
       )}

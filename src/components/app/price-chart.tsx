@@ -14,7 +14,12 @@ interface CandleResp {
 
 const TFS = ["15m", "1h", "4h", "1d"] as const;
 
-/** Candlestick chart (TradingView Lightweight Charts) with volume, plus optional signal level overlays. */
+/** Lightweight Charts throws unless times are strictly ascending, so sort and drop repeated timestamps. */
+function ascUnique<T extends { time: number }>(points: T[]): T[] {
+  return [...points].sort((a, b) => a.time - b.time).filter((p, i, arr) => i === 0 || p.time !== arr[i - 1].time);
+}
+
+/** Candlestick chart (TradingView Lightweight Charts) with volume, plus optional price level overlays. */
 export function PriceChart({ tokenId, levels }: { tokenId: string; levels?: { price: number; label: string; color: string }[] }) {
   const el = useRef<HTMLDivElement>(null);
   const [tf, setTf] = useState<(typeof TFS)[number]>("15m");
@@ -26,36 +31,46 @@ export function PriceChart({ tokenId, levels }: { tokenId: string; levels?: { pr
     (async () => {
       setState((s) => ({ ...s, loading: true, error: null }));
       const res = await fetch(`/api/tokens/${tokenId}/candles?tf=${tf}`).catch(() => null);
-      const data: CandleResp | null = res && res.ok ? await res.json() : null;
+      const data: CandleResp | null = res && res.ok ? await res.json().catch(() => null) : null;
       if (disposed) return;
       if (!data) return setState({ loading: false, error: "Chart data unavailable right now.", meta: null });
       if (!el.current) return;
       const { createChart, CandlestickSeries, HistogramSeries, LineSeries, CrosshairMode } = await import("lightweight-charts");
       if (disposed || !el.current) return;
+      // The chart draws on a canvas, so theme colors are read from the CSS tokens at render time.
+      const css = getComputedStyle(document.documentElement);
+      const tok = (name: string) => css.getPropertyValue(`--color-${name}`).trim();
+      const [up, down, line, muted] = [tok("up"), tok("down"), tok("line"), tok("fg-muted")];
       const chart = createChart(el.current, {
         autoSize: true,
-        layout: { background: { color: "transparent" }, textColor: "#9098ad", fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, attributionLogo: false },
-        grid: { vertLines: { color: "#141a2b" }, horzLines: { color: "#141a2b" } },
-        rightPriceScale: { borderColor: "#1c2436" },
-        timeScale: { borderColor: "#1c2436", timeVisible: true, secondsVisible: false },
+        layout: { background: { color: "transparent" }, textColor: muted, fontFamily: getComputedStyle(document.body).fontFamily, fontSize: 11, attributionLogo: false },
+        grid: { vertLines: { color: line }, horzLines: { color: line } },
+        rightPriceScale: { borderColor: line },
+        timeScale: { borderColor: line, timeVisible: true, secondsVisible: false },
         crosshair: { mode: CrosshairMode.Normal },
         localization: { priceFormatter: (p: number) => formatPrice(p).replace("$", "") },
       });
+      if (data.candles) data.candles = ascUnique(data.candles);
+      if (data.line) data.line = ascUnique(data.line);
       if (data.candles?.length) {
-        const candles = chart.addSeries(CandlestickSeries, { upColor: "#1fe08a", downColor: "#ff4d5e", borderVisible: false, wickUpColor: "#1fe08a", wickDownColor: "#ff4d5e", priceFormat: { type: "price", minMove: 1e-12, precision: 10 } });
+        const candles = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, borderVisible: false, wickUpColor: up, wickDownColor: down, priceFormat: { type: "price", minMove: 1e-12, precision: 10 } });
         candles.setData(data.candles.map((c) => ({ time: c.time as never, open: c.open, high: c.high, low: c.low, close: c.close })));
         const vol = chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" } });
         chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-        vol.setData(data.candles.map((c) => ({ time: c.time as never, value: c.volume, color: c.close >= c.open ? "rgba(31,224,138,0.35)" : "rgba(255,77,94,0.35)" })));
+        vol.setData(data.candles.map((c) => ({ time: c.time as never, value: c.volume, color: `${c.close >= c.open ? up : down}59` })));
         for (const l of levels ?? []) candles.createPriceLine({ price: l.price, color: l.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: l.label });
       } else if (data.line?.length) {
-        const line = chart.addSeries(LineSeries, { color: "#4d8dff", lineWidth: 2, priceFormat: { type: "price", minMove: 1e-12, precision: 10 } });
-        line.setData(data.line.map((p) => ({ time: p.time as never, value: p.value })));
+        const series = chart.addSeries(LineSeries, { color: up, lineWidth: 2, priceFormat: { type: "price", minMove: 1e-12, precision: 10 } });
+        series.setData(data.line.map((p) => ({ time: p.time as never, value: p.value })));
       }
       chart.timeScale().fitContent();
       cleanup = () => chart.remove();
       setState({ loading: false, error: data.candles?.length || data.line?.length ? null : "No price history available for this pair yet.", meta: data });
-    })();
+    })().catch(() => {
+      // Network drop while loading the chart library or candles (e.g. server restarting): show it in the chart
+      // instead of an uncaught error.
+      if (!disposed) setState({ loading: false, error: "Chart failed to load. Check your connection and reload the page.", meta: null });
+    });
     return () => {
       disposed = true;
       cleanup();
@@ -74,7 +89,7 @@ export function PriceChart({ tokenId, levels }: { tokenId: string; levels?: { pr
         </div>
         <div className="flex items-center gap-2 text-[11px] text-fg-faint">
           {state.meta?.demo && <Badge tone="warn">Synthetic demo candles</Badge>}
-          {state.meta?.source === "snapshots" && <Badge tone="warn" title={state.meta.degraded}>OHLCV unavailable · showing NEXALPHA snapshots</Badge>}
+          {state.meta?.source === "snapshots" && <Badge tone="warn" title={state.meta.degraded}>OHLCV unavailable · showing SOLME snapshots</Badge>}
           {state.meta?.source === "geckoterminal" && <span>OHLCV: GeckoTerminal</span>}
         </div>
       </div>

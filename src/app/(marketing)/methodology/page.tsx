@@ -4,14 +4,14 @@ import { Badge, Card } from "@/components/ui";
 import { FACTOR_DOCS, SCORING_VERSION } from "@/lib/scoring/engine";
 import { getSetting } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Scoring methodology", description: "Every factor, weight and rule behind NEXALPHA scores and signals." };
+export const metadata: Metadata = { title: "Scoring methodology", description: "Every factor, weight and rule behind SOLME scores and the pre-buy check." };
 export const dynamic = "force-dynamic";
 
 export default async function MethodologyPage() {
   const s = await getSetting("scoring");
   const total = Object.values(s.weights).reduce((a, b) => a + b, 0) || 1;
   return (
-    <Section as="h1" eyebrow={`Scoring ${s.version || SCORING_VERSION}`} title="Scoring methodology" intro="NEXALPHA scores are deterministic and reproducible. This page renders the live configuration used by the engine.">
+    <Section as="h1" eyebrow={`Scoring ${s.version || SCORING_VERSION}`} title="Scoring methodology" intro="SOLME scores are deterministic and reproducible. This page renders the live configuration used by the engine.">
       <div className="space-y-8">
         <Card className="overflow-x-auto">
           <table className="table-terminal">
@@ -40,21 +40,19 @@ export default async function MethodologyPage() {
             </ul>
           </Card>
           <Card className="p-5 text-sm text-fg-muted">
-            <h3 className="mb-2 font-semibold text-fg">Publishing a signal</h3>
+            <h3 className="mb-2 font-semibold text-fg">Patterns</h3>
             <ul className="list-disc space-y-1.5 pl-5">
               <li><b>Momentum</b>: momentum ≥ 65, ≥55% buys, volume acceleration ≥ 60, and ≥3% hourly expansion.</li>
               <li><b>Accumulation</b>: ≥58% buys while 1h price moves &lt;3% and 24h stays between −10% and +15%.</li>
               <li><b>Breakout watch</b>: strong volume acceleration while 1h price stays within ±3%.</li>
               <li><b>Distribution</b>: ≤42% buys with rising volume and falling price. <b>High risk</b>: critical security or risk ≥ 75.</li>
-              <li>All signals need liquidity ≥ ${s.thresholds.min_liquidity_usd.toLocaleString()}, 24h volume ≥ ${s.thresholds.min_volume_h24_usd.toLocaleString()}, fresh data and confidence ≥ {s.thresholds.signal_min_confidence}. Bullish ones also need score ≥ {s.thresholds.signal_min_score}, no high security risk, a pair older than 1 hour, and no parabolic move.</li>
-              <li>The same token and pattern is not re-signalled for {s.thresholds.dedup_hours}h unless the score rises by {s.thresholds.rescore_delta}+ points.</li>
+              <li>A pattern only counts (is eligible) with liquidity ≥ ${s.thresholds.min_liquidity_usd.toLocaleString()}, 24h volume ≥ ${s.thresholds.min_volume_h24_usd.toLocaleString()}, fresh data and confidence ≥ {s.thresholds.min_confidence}. Bullish ones also need score ≥ {s.thresholds.min_score}, no high security risk, a pair older than 1 hour, and no parabolic move.</li>
             </ul>
           </Card>
         </div>
         <Card className="p-5 text-sm text-fg-muted">
-          <h3 className="mb-2 font-semibold text-fg">Scenario levels & limitations</h3>
-          <p>For bullish signals with at least 20 fifteen-minute candles, the engine derives an entry zone (price − 0.5×ATR to price), an invalidation (recent swing low, or 2×ATR), a stop-loss scenario just below it, and take-profit scenarios at 1.5R and 3R. These describe a risk structure; they are not predictions or advice.</p>
-          <p className="mt-2">Known limitations: transaction counts are not trade sizes; DEX data excludes centralized exchanges; 7-day change and some holder data are not available from current providers; security checks cannot detect every malicious mechanism; measured outcomes ignore fees and slippage.</p>
+          <h3 className="mb-2 font-semibold text-fg">Limitations</h3>
+          <p>Known limitations: transaction counts are not trade sizes; DEX data excludes centralized exchanges; 7-day change and some holder data are not available from current providers; security checks cannot detect every malicious mechanism; measured outcomes ignore fees and slippage.</p>
         </Card>
       </div>
     </Section>

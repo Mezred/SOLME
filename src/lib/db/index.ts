@@ -106,12 +106,32 @@ async function createPglite(dataDir: string | undefined): Promise<Database> {
   };
 }
 
-type GlobalDb = { __nexalphaDb?: Promise<Database>; __nexalphaDbOverride?: Database };
+type GlobalDb = { __nexalphaDb?: Promise<Database>; __nexalphaDbOverride?: Database; __nexalphaDevMigrations?: { count: number; done: Promise<Database> } };
 const g = globalThis as unknown as GlobalDb;
 
 /** Returns the process-wide database (migrated). Survives Next.js dev hot reloads. */
 export function getDb(): Promise<Database> {
   if (g.__nexalphaDbOverride) return Promise.resolve(g.__nexalphaDbOverride);
+  return env.isProd ? openDb() : openDb().then(applyNewDevMigrations);
+}
+
+/**
+ * Dev only: the connection outlives hot reloads, so migrations added while `next dev` is running would
+ * otherwise wait for a restart. Re-runs the (idempotent) migrator once whenever the embedded set grows.
+ */
+async function applyNewDevMigrations(db: Database): Promise<Database> {
+  const { MIGRATIONS } = await import("./migrations.generated");
+  const state = g.__nexalphaDevMigrations;
+  if (state && state.count === MIGRATIONS.length) return state.done;
+  const done = import("./migrate").then(({ migrate }) => migrate(db)).then(() => db);
+  g.__nexalphaDevMigrations = { count: MIGRATIONS.length, done };
+  done.catch(() => {
+    g.__nexalphaDevMigrations = undefined;
+  });
+  return done;
+}
+
+function openDb(): Promise<Database> {
   if (!g.__nexalphaDb) {
     g.__nexalphaDb = (async () => {
       if (env.isProd && !env.databaseUrl && process.env.ALLOW_PGLITE_IN_PRODUCTION !== "true" && process.env.NEXT_PHASE !== "phase-production-build") {
@@ -127,6 +147,14 @@ export function getDb(): Promise<Database> {
     });
   }
   return g.__nexalphaDb;
+}
+
+/** Scripts: open (and migrate) a specific database, independent of the app's configured one. */
+export async function openDatabaseAt(target: { url: string } | { pgliteDir: string }): Promise<Database> {
+  const db = "url" in target ? await createPg(target.url) : await createPglite(target.pgliteDir);
+  const { migrate } = await import("./migrate");
+  await migrate(db);
+  return db;
 }
 
 /** Tests: use an isolated in-memory database. */

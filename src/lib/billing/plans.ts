@@ -3,9 +3,6 @@ import type { ChainId } from "@/lib/chains";
 
 export interface PlanFeatures {
   chains: ChainId[];
-  signal_feed_limit: number;
-  signal_delay_minutes: number;
-  signal_history_days: number;
   advanced_filters: boolean;
   max_watchlists: number;
   max_watchlist_items: number;
@@ -47,24 +44,14 @@ export async function getPlan(id: string): Promise<Plan | null> {
   return queryOne<Plan>("SELECT * FROM subscription_plans WHERE id = $1", [id]);
 }
 
-/** Human-readable feature rows for pricing tables, derived from the configured entitlements. */
+/** Short feature rows for pricing cards, derived from the configured entitlements (only what the product shows). */
 export function featureRows(f: PlanFeatures): string[] {
+  const telegram = f.alert_channels.includes("telegram");
   const rows = [
-    `${f.chains.length} chain${f.chains.length === 1 ? "" : "s"}: ${f.chains.map((c) => c.toUpperCase()).join(", ")}`,
-    f.signal_delay_minutes > 0
-      ? `Signal feed (latest ${f.signal_feed_limit}, ${f.signal_delay_minutes}-min delay)`
-      : `Real-time signal feed (latest ${f.signal_feed_limit})`,
-    `${f.signal_history_days}-day signal history`,
-    f.advanced_filters ? "Advanced screener filters" : "Basic filters",
-    `${f.max_watchlists} watchlist${f.max_watchlists === 1 ? "" : "s"} · ${f.max_watchlist_items} tokens`,
-    `${f.max_alert_rules} alert rules (${f.alert_channels.join(", ").replace("in_app", "in-app")})`,
-    `${f.ai_daily_requests} AI requests / day${f.ai_deep_analysis ? " · deep analysis" : ""}`,
-    `${f.portfolio_analytics === "advanced" ? "Advanced" : "Basic"} portfolio analytics${f.csv_export ? " · CSV export" : ""}`,
+    "Scam check on any coin",
+    `${f.max_alert_rules} alerts${telegram ? " · Telegram & email" : " · in-app"}`,
+    f.smart_money ? "Smart wallets + proven-dev launches" : f.max_tracked_wallets > 0 ? `Follow ${f.max_tracked_wallets} wallets` : "",
+    f.priority_support ? "Priority support" : "",
   ];
-  if (f.max_tracked_wallets > 0) rows.push(`Track ${f.max_tracked_wallets} wallets`);
-  if (f.smart_money) rows.push("Smart Money tracking");
-  if (f.whale_alerts) rows.push("Whale alerts");
-  rows.push(`${f.market_intelligence[0].toUpperCase()}${f.market_intelligence.slice(1)} market intelligence`);
-  if (f.priority_support) rows.push("Priority support");
-  return rows;
+  return rows.filter(Boolean);
 }

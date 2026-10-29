@@ -42,7 +42,7 @@ export function passwordProblems(password: string, email?: string): string | nul
   if (password.length > 200) return "Password is too long.";
   if (/^(.)\1+$/.test(password)) return "Password cannot be a single repeated character.";
   const lowered = password.toLowerCase();
-  if (["password12", "1234567890", "qwertyuiop", "nexalpha123"].some((w) => lowered.includes(w)))
+  if (["password12", "1234567890", "qwertyuiop", "nexalpha123", "solme123"].some((w) => lowered.includes(w)))
     return "Password is too common.";
   if (email && lowered.includes(email.split("@")[0].toLowerCase()) && email.split("@")[0].length >= 4)
     return "Password should not contain your email name.";

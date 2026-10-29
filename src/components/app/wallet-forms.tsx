@@ -46,6 +46,29 @@ export function TrackWalletForm({ chains }: { chains: ChainId[] }) {
   );
 }
 
+/** One-click "track" for a discovered candidate wallet. Plan limits are enforced by the API. */
+export function TrackCandidateButton({ chain, address }: { chain: ChainId; address: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [error, setError] = useState<string | null>(null);
+  async function track() {
+    setState("busy");
+    const r = await apiFetch("/api/wallets", { body: { chain, address } });
+    if (!r.ok) {
+      setState("idle");
+      return setError(r.error);
+    }
+    setError(null);
+    setState("done");
+  }
+  if (state === "done") return <span className="text-xs text-up">Following</span>;
+  return (
+    <span className="flex flex-col items-end">
+      <button className="text-xs text-fg-muted hover:text-up disabled:opacity-50" onClick={track} disabled={state === "busy"}>{state === "busy" ? "Adding…" : "Follow"}</button>
+      {error && <span role="alert" className="max-w-[180px] text-right text-[10px] text-down">{error}</span>}
+    </span>
+  );
+}
+
 export function UntrackWallet({ id }: { id: string }) {
   const router = useRouter();
   const [c, setC] = useState(false);

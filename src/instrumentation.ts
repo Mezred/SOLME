@@ -12,6 +12,10 @@ export async function register() {
   await getDb();
   const { startInProcessWorker } = await import("@/lib/jobs/scheduler");
   startInProcessWorker();
+  const { startLaunchpadStream } = await import("@/lib/launchpad/stream");
+  startLaunchpadStream();
+  const { startSmartWalletStream } = await import("@/lib/wallets/live");
+  startSmartWalletStream();
 }
 
 export async function onRequestError(err: unknown, request: { path: string; method: string }) {

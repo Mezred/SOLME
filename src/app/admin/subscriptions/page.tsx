@@ -21,7 +21,7 @@ export default async function AdminSubscriptions() {
     query<{ cents: number | null }>(
       `SELECT sum(CASE WHEN s.billing_interval = 'year' THEN p.price_annual_cents / 12.0 ELSE p.price_monthly_cents END)::int AS cents
          FROM subscriptions s JOIN subscription_plans p ON p.id = s.plan_id
-        WHERE s.source = 'stripe' AND s.status IN ('active', 'trialing') AND s.current_period_end > now()`,
+        WHERE s.source IN ('stripe', 'crypto') AND s.status IN ('active', 'trialing') AND s.current_period_end > now()`,
     ),
   ]);
   return (

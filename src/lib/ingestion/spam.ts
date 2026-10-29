@@ -12,23 +12,21 @@ const CANONICAL: Partial<Record<ChainId, Record<string, string[]>>> = {
     SOL: ["So11111111111111111111111111111111111111112"],
     WSOL: ["So11111111111111111111111111111111111111112"],
   },
-  ethereum: {
-    USDC: ["0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"],
-    USDT: ["0xdac17f958d2ee523a2206206994597c13d831ec7"],
-    WETH: ["0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"],
-  },
-  bsc: {
-    USDT: ["0x55d398326f99059ff775485246999027b3197955"],
-    USDC: ["0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"],
-    WBNB: ["0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"],
-  },
-  base: {
-    USDC: ["0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"],
-    WETH: ["0x4200000000000000000000000000000000000006"],
-  },
 };
 
 export const MIN_STORE_LIQUIDITY_USD = 1_000;
+/** Launchpad bonding-curve pairs (pump.fun, Meteora DBC…) have no liquidity figure on DexScreener at all. */
+const MIN_CURVE_MARKET_CAP_USD = 5_000;
+const MIN_CURVE_VOLUME_H24_USD = 1_000;
+
+/**
+ * Whether a pair is worth storing. Pools need real liquidity; pairs that report no liquidity at all
+ * (bonding curves) need real activity instead, and keep a null liquidity rather than an invented one.
+ */
+export function worthStoring(p: MarketPairData): boolean {
+  if (p.liquidityUsd !== null) return p.liquidityUsd >= MIN_STORE_LIQUIDITY_USD;
+  return (p.marketCap ?? p.fdv ?? 0) >= MIN_CURVE_MARKET_CAP_USD && (p.volume.h24 ?? 0) >= MIN_CURVE_VOLUME_H24_USD;
+}
 
 export function spamReason(p: MarketPairData): string | null {
   if (p.priceUsd === null || p.priceUsd <= 0) return "No valid price";

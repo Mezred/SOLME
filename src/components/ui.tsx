@@ -9,13 +9,13 @@ export function cx(...c: (string | false | null | undefined)[]) {
 
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "ai";
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-up text-ink-950 hover:bg-[#3bf0a0] font-semibold",
-  secondary: "bg-ink-700 text-fg border border-line-strong hover:bg-ink-750 hover:border-fg-faint",
-  ghost: "text-fg-muted hover:text-fg hover:bg-ink-750",
-  danger: "bg-down/15 text-down border border-down/40 hover:bg-down/25",
-  ai: "bg-ai/15 text-[#c4baff] border border-ai/40 hover:bg-ai/25",
+  primary: "bg-up text-ink-950 border border-up hover:brightness-110 font-semibold",
+  secondary: "bg-transparent text-fg border border-line-strong hover:border-fg-muted hover:bg-ink-800",
+  ghost: "text-fg-muted hover:text-up",
+  danger: "bg-ink-950 text-down border border-down/60 hover:bg-down hover:text-ink-950",
+  ai: "bg-ink-950 text-up border border-up/50 hover:bg-up hover:text-ink-950",
 };
-const SIZES = { sm: "h-7 px-2.5 text-xs", md: "h-9 px-3.5 text-sm", lg: "h-11 px-5 text-[15px]" };
+const SIZES = { sm: "h-7 px-2.5 text-xs", md: "h-9 px-3.5 text-xs", lg: "h-11 px-5 text-sm" };
 
 export function buttonClass(variant: Variant = "secondary", size: keyof typeof SIZES = "md", extra = "") {
   return cx(
@@ -46,7 +46,7 @@ export function CardHeader({ title, subtitle, action, className = "" }: { title:
   return (
     <div className={cx("flex items-start justify-between gap-3 border-b border-line px-4 py-3", className)}>
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-fg">{title}</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-fg">{title}</h2>
         {subtitle && <p className="mt-0.5 text-xs text-fg-faint">{subtitle}</p>}
       </div>
       {action}
@@ -56,12 +56,12 @@ export function CardHeader({ title, subtitle, action, className = "" }: { title:
 
 type Tone = "neutral" | "up" | "down" | "warn" | "ai" | "info";
 const TONES: Record<Tone, string> = {
-  neutral: "bg-ink-700 text-fg-muted border-line-strong",
-  up: "bg-up/10 text-up border-up/30",
-  down: "bg-down/10 text-down border-down/30",
-  warn: "bg-warn/10 text-warn border-warn/30",
-  ai: "bg-ai/10 text-[#b9adff] border-ai/30",
-  info: "bg-info/10 text-[#8db6ff] border-info/30",
+  neutral: "bg-transparent text-fg-muted border-line-strong",
+  up: "bg-up/10 text-up border-up/40",
+  down: "bg-down/10 text-down border-down/40",
+  warn: "bg-transparent text-warn border-warn/40",
+  ai: "bg-transparent text-up-soft border-up-soft/40",
+  info: "bg-transparent text-up-soft border-up-soft/40",
 };
 
 export function Badge({ tone = "neutral", children, className = "", title }: { tone?: Tone; children: ReactNode; className?: string; title?: string }) {
@@ -84,8 +84,7 @@ export function ChainBadge({ chain }: { chain: string }) {
   const c = CHAINS[chain as ChainId];
   if (!c) return <Badge>{chain}</Badge>;
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-ink-800 px-1.5 py-0.5 text-[11px] font-medium text-fg-muted">
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: c.color }} aria-hidden="true" />
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] font-medium text-fg-muted" title={c.name}>
       {c.short}
     </span>
   );
@@ -96,12 +95,13 @@ export function PriceChange({ value, className = "" }: { value: number | null | 
   return <span className={cx("num", tone, className)}>{formatPct(value)}</span>;
 }
 
+/** CSS color for a 0–100 score: bright green → soft green → lime → red. */
 export function scoreTone(score: number | null | undefined): string {
-  if (score === null || score === undefined) return "#5d667c";
-  if (score >= 75) return "#1fe08a";
-  if (score >= 60) return "#8fd14f";
-  if (score >= 45) return "#f4b544";
-  return "#ff4d5e";
+  if (score === null || score === undefined) return "var(--color-fg-faint)";
+  if (score >= 75) return "var(--color-up)";
+  if (score >= 60) return "var(--color-up-soft)";
+  if (score >= 45) return "var(--color-warn)";
+  return "var(--color-down)";
 }
 
 export function ScoreRing({ score, size = 40, label }: { score: number | null | undefined; size?: number; label?: string }) {
@@ -111,8 +111,8 @@ export function ScoreRing({ score, size = 40, label }: { score: number | null | 
   return (
     <div className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }} role="img" aria-label={`${label ?? "Score"} ${score ?? "unavailable"} out of 100`}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#1c2436" strokeWidth="3" fill="none" />
-        <circle cx={size / 2} cy={size / 2} r={r} stroke={scoreTone(score)} strokeWidth="3" fill="none" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round" />
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth="3" fill="none" style={{ stroke: "var(--color-line-strong)" }} />
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth="3" fill="none" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="butt" style={{ stroke: scoreTone(score) }} />
       </svg>
       <span className="num absolute text-[12px] font-semibold" style={{ fontSize: size < 36 ? 10 : 12 }}>
         {score ?? "—"}
@@ -137,8 +137,8 @@ const TYPE_META: Record<string, { label: string; tone: Tone }> = {
   high_risk: { label: "High risk", tone: "down" },
 };
 
-export function SignalTypeBadge({ type }: { type: string | null }) {
-  if (!type) return <Badge>No signal</Badge>;
+export function PatternBadge({ type }: { type: string | null }) {
+  if (!type) return <Badge>No pattern</Badge>;
   const m = TYPE_META[type] ?? { label: type, tone: "neutral" as Tone };
   return <Badge tone={m.tone}>{m.label}</Badge>;
 }
@@ -148,13 +148,33 @@ export function StrengthBadge({ strength }: { strength: string }) {
   return <Badge tone={tone}>{strength}</Badge>;
 }
 
+/**
+ * Contract security (GoPlus) only — it says nothing about price, liquidity or holder risk, so the label is
+ * scoped to the contract instead of "low risk".
+ */
 export function RiskBadge({ level }: { level: string | null | undefined }) {
   const l = level ?? "unknown";
   const tone: Tone = l === "low" ? "up" : l === "medium" ? "warn" : l === "unknown" ? "neutral" : "down";
+  const label = l === "low" ? "Contract OK" : l === "medium" ? "Contract: caution" : l === "unknown" ? "Unverified" : "Contract: danger";
   return (
-    <Badge tone={tone} title={l === "unknown" ? "Security data unavailable — this is not a clean result" : undefined}>
-      {l === "unknown" ? "Unverified" : `${l[0].toUpperCase()}${l.slice(1)} risk`}
+    <Badge tone={tone} title={l === "unknown" ? "Contract checks unavailable — this is not a clean result" : "Contract checks only (GoPlus) — not a judgement of price or liquidity risk"}>
+      {label}
     </Badge>
+  );
+}
+
+/** Pre-buy verdict from src/lib/decision/verdict.ts. */
+export function VerdictBadge({ verdict, title, size = "md" }: { verdict: "tradeable" | "candidate" | "watch" | "avoid"; title?: string; size?: "md" | "lg" }) {
+  const map = {
+    tradeable: "bg-up text-ink-950 border-up",
+    candidate: "bg-transparent text-up border-up",
+    watch: "bg-transparent text-warn border-warn/60",
+    avoid: "bg-down/15 text-down border-down/60",
+  } as const;
+  return (
+    <span title={title} className={cx("inline-flex items-center whitespace-nowrap rounded-md border font-bold uppercase tracking-wider", size === "lg" ? "px-3 py-1 text-sm" : "px-1.5 py-0.5 text-[10px]", map[verdict])}>
+      {verdict}
+    </span>
   );
 }
 
@@ -163,9 +183,8 @@ export function TokenAvatar({ symbol, logo, size = 28 }: { symbol: string; logo?
     // eslint-disable-next-line @next/next/no-img-element -- remote logos from many CDNs; sized and lazy-loaded
     return <img src={logo} alt="" width={size} height={size} loading="lazy" className="shrink-0 rounded-full bg-ink-700 object-cover" style={{ width: size, height: size }} />;
   }
-  const hue = [...symbol].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 0);
   return (
-    <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-ink-950" style={{ width: size, height: size, background: `hsl(${hue} 70% 62%)` }}>
+    <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-full border border-up/50 text-[10px] font-bold text-up" style={{ width: size, height: size }}>
       {symbol.replace(/^d(?=[A-Z])/, "").slice(0, 2).toUpperCase()}
     </span>
   );
@@ -202,10 +221,10 @@ export function ErrorState({ title = "Something went wrong", body }: { title?: s
 }
 
 export function Notice({ tone = "info", children, title }: { tone?: "info" | "warn" | "ai" | "down"; children: ReactNode; title?: string }) {
-  const map = { info: "border-info/30 bg-info/5", warn: "border-warn/30 bg-warn/5", ai: "border-ai/30 bg-ai/5", down: "border-down/30 bg-down/5" };
-  const tmap = { info: "text-[#8db6ff]", warn: "text-warn", ai: "text-[#b9adff]", down: "text-down" };
+  const map = { info: "border-line-strong", warn: "border-warn/40", ai: "border-line-strong", down: "border-down/50 bg-down/5" };
+  const tmap = { info: "text-up-soft", warn: "text-warn", ai: "text-up-soft", down: "text-down" };
   return (
-    <div className={cx("rounded-lg border px-3.5 py-2.5 text-sm", map[tone])}>
+    <div className={cx("rounded-lg border border-l-2 px-3.5 py-2.5 text-sm", map[tone])}>
       {title && <div className={cx("mb-0.5 font-medium", tmap[tone])}>{title}</div>}
       <div className="text-fg-muted">{children}</div>
     </div>
@@ -234,7 +253,7 @@ export function PageHeader({ title, description, actions, badge }: { title: stri
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          <h1 className="prompt text-lg font-semibold">{title}</h1>
           {badge}
         </div>
         {description && <p className="mt-1 max-w-3xl text-sm text-fg-muted">{description}</p>}
@@ -271,7 +290,7 @@ export function ScanIcon({ className = "h-7 w-7" }: { className?: string }) {
 export function Disclaimer({ className = "" }: { className?: string }) {
   return (
     <p className={cx("text-xs leading-relaxed text-fg-faint", className)}>
-      Crypto assets are highly volatile and can lose all value. NEXALPHA signals, scores and AI output are informational research tools — not
+      Crypto assets are highly volatile and can lose all value. SOLME scores, verdicts and AI output are informational research tools — not
       financial advice and not a guarantee of any outcome. Data may be delayed, incomplete or unavailable.{" "}
       <Link href="/risk" className="underline hover:text-fg-muted">
         Risk disclosure

@@ -37,14 +37,14 @@ export async function findUserByEmail(email: string) {
 export async function sendVerification(userId: string, email: string): Promise<{ devUrl?: string }> {
   const token = await issueAuthToken(userId, "verify_email");
   const url = `${env.appUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
-  await sendEmail(email, "Verify your NEXALPHA email", `Confirm your email address to finish setting up NEXALPHA:\n\n${url}\n\nThis link expires in 24 hours. If you did not create an account, ignore this message.`);
+  await sendEmail(email, "Verify your SOLME email", `Confirm your email address to finish setting up SOLME:\n\n${url}\n\nThis link expires in 24 hours. If you did not create an account, ignore this message.`);
   return !integrations.email && !env.isProd ? { devUrl: url } : {};
 }
 
 export async function sendPasswordReset(userId: string, email: string): Promise<{ devUrl?: string }> {
   const token = await issueAuthToken(userId, "reset_password");
   const url = `${env.appUrl}/reset-password?token=${encodeURIComponent(token)}`;
-  await sendEmail(email, "Reset your NEXALPHA password", `A password reset was requested for your account.\n\n${url}\n\nThis link expires in 30 minutes and can be used once. If you did not request it, you can ignore this email — your password will not change.`);
+  await sendEmail(email, "Reset your SOLME password", `A password reset was requested for your account.\n\n${url}\n\nThis link expires in 30 minutes and can be used once. If you did not request it, you can ignore this email — your password will not change.`);
   return !integrations.email && !env.isProd ? { devUrl: url } : {};
 }
 

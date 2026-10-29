@@ -45,15 +45,18 @@ export const env = {
 
   stripeSecretKey: str("STRIPE_SECRET_KEY"),
   stripeWebhookSecret: str("STRIPE_WEBHOOK_SECRET"),
+  /** Your Solana wallet that receives crypto subscription payments (USDC or SOL, via Solana Pay). */
+  solanaPayRecipient: str("SOLANA_PAY_RECIPIENT"),
 
   resendApiKey: str("RESEND_API_KEY"),
-  emailFrom: str("EMAIL_FROM") ?? "NEXALPHA <alerts@example.com>",
+  emailFrom: str("EMAIL_FROM") ?? "SOLME <alerts@example.com>",
 
   telegramBotToken: str("TELEGRAM_BOT_TOKEN"),
 
   heliusApiKey: str("HELIUS_API_KEY"),
-  alchemyApiKey: str("ALCHEMY_API_KEY"),
   goplusAppKey: str("GOPLUS_APP_KEY"),
+  /** Optional GMGN referral code appended to "Trade on GMGN" links. */
+  gmgnReferralCode: str("GMGN_REFERRAL_CODE"),
   goplusAppSecret: str("GOPLUS_APP_SECRET"),
 
   bootstrapAdminEmail: str("BOOTSTRAP_ADMIN_EMAIL")?.toLowerCase(),
@@ -66,5 +69,4 @@ export const integrations = {
   email: Boolean(env.resendApiKey),
   telegram: Boolean(env.telegramBotToken),
   helius: Boolean(env.heliusApiKey),
-  alchemy: Boolean(env.alchemyApiKey),
 } as const;

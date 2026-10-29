@@ -17,7 +17,15 @@ export const POST = api(async (req) => {
   const disallowed = b.channels.filter((c) => !ent.features.alert_channels.includes(c));
   if (disallowed.length) throw upgradeRequired(`${disallowed.join(", ")} alerts are not included in the ${ent.planName} plan.`);
   if (b.channels.includes("email") && !user.emailVerified) throw badRequest("Verify your email address before enabling email alerts.");
-  if (b.rule_type === "wallet_activity" && ent.features.max_tracked_wallets === 0) throw upgradeRequired("Wallet alerts require Pro or Elite.");
+  if ((b.rule_type === "wallet_activity" || b.rule_type === "smart_wallet_buy") && ent.features.max_tracked_wallets === 0) throw upgradeRequired("Wallet alerts require Pro or Elite.");
+  if (["dev_deploy", "curve_progress"].includes(b.rule_type) && !ent.features.chains.includes("solana")) throw upgradeRequired("Launchpad alerts need Solana on your plan.");
+  if (b.rule_type === "smart_wallet_buy" && !ent.features.chains.includes("solana")) throw upgradeRequired("Smart-wallet alerts need Solana on your plan.");
+  if (b.rule_type === "smart_wallet_buy" && b.params.followed_only !== true && !ent.features.smart_money) throw upgradeRequired("Smart-wallet alerts are part of the Elite plan.");
+  if (b.rule_type === "smart_group_buy" && (!ent.features.smart_money || !ent.features.chains.includes("solana"))) throw upgradeRequired("Group-buy alerts are part of the Elite plan (Solana).");
+  if (b.rule_type === "screener_match") {
+    const [t] = await withUser(user.id, (tx) => tx.query("SELECT 1 FROM screener_templates WHERE id = $1", [b.params.template_id]));
+    if (!t) throw notFound("Template not found");
+  }
   if (b.chain) {
     if (!isChainId(b.chain)) throw badRequest("Unknown chain");
     assertChain(ent, b.chain);

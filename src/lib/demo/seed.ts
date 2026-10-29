@@ -4,8 +4,8 @@
  * scoring engine and UI but never represents a real market. In live mode demo rows are filtered out.
  */
 import type { ChainId } from "@/lib/chains";
-import { query, queryOne, transaction } from "@/lib/db";
-import { maybeCreateSignal, storeMarketData, storeSecurity } from "@/lib/ingestion/pipeline";
+import { queryOne, transaction } from "@/lib/db";
+import { saveScore, storeMarketData, storeSecurity } from "@/lib/ingestion/pipeline";
 import type { Candle, MarketPairData, SecurityCheck, SecurityReport } from "@/lib/providers/types";
 import { scoreToken } from "@/lib/scoring/engine";
 import { getSetting } from "@/lib/settings";
@@ -24,23 +24,12 @@ interface DemoToken {
 }
 
 const sol = (s: string) => `Demo${s}`.padEnd(43, "1");
-const evm = (n: number) => `0xde${n.toString(16).padStart(38, "0")}`;
 
 export const DEMO_TOKENS: DemoToken[] = [
   { chain: "solana", symbol: "dAURA", name: "[DEMO] Aurora", address: sol("Aurora"), basePrice: 0.0421, liquidity: 840_000, ageDays: 21, profile: "momentum" },
   { chain: "solana", symbol: "dKITE", name: "[DEMO] Kite Protocol", address: sol("Kite"), basePrice: 1.82, liquidity: 2_400_000, ageDays: 140, profile: "accumulation" },
   { chain: "solana", symbol: "dZEPH", name: "[DEMO] Zephyr", address: sol("Zephyr"), basePrice: 0.00071, liquidity: 160_000, ageDays: 0.3, profile: "newborn" },
   { chain: "solana", symbol: "dRUGX", name: "[DEMO] Trap Token", address: sol("Trap"), basePrice: 0.0093, liquidity: 95_000, ageDays: 2, profile: "honeypot" },
-  { chain: "ethereum", symbol: "dHALO", name: "[DEMO] Halo Finance", address: evm(1), basePrice: 3.14, liquidity: 5_600_000, ageDays: 400, profile: "steady" },
-  { chain: "ethereum", symbol: "dVOLT", name: "[DEMO] Volt", address: evm(2), basePrice: 0.27, liquidity: 1_100_000, ageDays: 33, profile: "breakout" },
-  { chain: "ethereum", symbol: "dDUSK", name: "[DEMO] Dusk Labs", address: evm(3), basePrice: 0.88, liquidity: 730_000, ageDays: 64, profile: "distribution" },
-  { chain: "bsc", symbol: "dLOTUS", name: "[DEMO] Lotus", address: evm(4), basePrice: 0.0056, liquidity: 410_000, ageDays: 12, profile: "momentum" },
-  { chain: "bsc", symbol: "dGRID", name: "[DEMO] Grid", address: evm(5), basePrice: 0.112, liquidity: 290_000, ageDays: 5, profile: "accumulation" },
-  { chain: "bsc", symbol: "dSPIN", name: "[DEMO] Spin Tax", address: evm(6), basePrice: 0.00044, liquidity: 88_000, ageDays: 1, profile: "honeypot" },
-  { chain: "base", symbol: "dBLUE", name: "[DEMO] Bluefin", address: evm(7), basePrice: 0.0189, liquidity: 1_900_000, ageDays: 48, profile: "momentum" },
-  { chain: "base", symbol: "dORBT", name: "[DEMO] Orbit", address: evm(8), basePrice: 0.61, liquidity: 520_000, ageDays: 9, profile: "breakout" },
-  { chain: "base", symbol: "dNOVA", name: "[DEMO] Nova", address: evm(9), basePrice: 0.0000912, liquidity: 64_000, ageDays: 0.1, profile: "newborn" },
-  { chain: "base", symbol: "dMOSS", name: "[DEMO] Moss", address: evm(10), basePrice: 0.034, liquidity: 980_000, ageDays: 210, profile: "steady" },
 ];
 
 /** Deterministic PRNG so demo values are stable within a time bucket. */
@@ -83,7 +72,7 @@ export function demoMarket(t: DemoToken, now: Date): MarketPairData {
     logoUrl: null,
     pairAddress: `${t.address.slice(0, -4)}PAIR`.replace(/^0xde/, "0xdf"),
     dexId: "demo-dex",
-    quoteSymbol: t.chain === "solana" ? "SOL" : t.chain === "bsc" ? "WBNB" : "WETH",
+    quoteSymbol: "SOL",
     quoteAddress: null,
     url: null,
     pairCreatedAt: new Date(now.getTime() - t.ageDays * 86_400_000),
@@ -96,6 +85,7 @@ export function demoMarket(t: DemoToken, now: Date): MarketPairData {
     txns: {
       m5: { buys: Math.round((tx1 / 12) * share), sells: Math.round((tx1 / 12) * (1 - share)) },
       h1: { buys: Math.round(tx1 * share), sells: Math.round(tx1 * (1 - share)) },
+      h6: { buys: Math.round(tx24 * 0.3 * share), sells: Math.round(tx24 * 0.3 * (1 - share)) },
       h24: { buys: Math.round(tx24 * (share * 0.6 + 0.2)), sells: Math.round(tx24 * (1 - (share * 0.6 + 0.2))) },
     },
     websites: [],
@@ -151,7 +141,7 @@ export function demoCandles(address: string, price: number, count = 96, stepSec 
 
 let lastRun = 0;
 
-/** Refreshes demo snapshots/signals at most every 2 minutes. */
+/** Refreshes demo snapshots and scores at most every 2 minutes. */
 export async function ensureDemoData(force = false) {
   if (!force && Date.now() - lastRun < 110_000) return;
   lastRun = Date.now();
@@ -176,16 +166,6 @@ export async function ensureDemoData(force = false) {
       },
       scoring,
     );
-    await maybeCreateSignal(ids.tokenId, t.chain, ids.snapshotId, m.priceUsd, result, {
-      dedupHours: scoring.thresholds.dedup_hours,
-      rescoreDelta: scoring.thresholds.rescore_delta,
-      ttlHours: scoring.thresholds.signal_ttl_hours,
-      isDemo: true,
-      now,
-    });
-    await query("UPDATE token_assets SET metadata = metadata || $2 WHERE id = $1", [
-      ids.tokenId,
-      JSON.stringify({ last_score: { ai: result.aiScore, quality: result.qualityScore, momentum: result.momentumScore, risk: result.riskScore, confidence: result.confidenceScore, type: result.signalType, at: now.toISOString() } }),
-    ]);
+    await saveScore(ids.tokenId, result, now);
   }
 }

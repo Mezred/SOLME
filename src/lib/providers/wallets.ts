@@ -1,4 +1,4 @@
-import { CHAINS, normalizeAddress, type ChainId } from "@/lib/chains";
+import type { ChainId } from "@/lib/chains";
 import { env } from "@/lib/env";
 import { ProviderClient } from "./http";
 import type { WalletActivityProvider, WalletTransaction } from "./types";
@@ -73,77 +73,6 @@ export const heliusWallets: WalletActivityProvider = {
   },
 };
 
-// Alchemy network slugs. BNB Smart Chain is omitted: alchemy_getAssetTransfers support for it is not documented.
-const ALCHEMY_NETWORK: Partial<Record<ChainId, string>> = { ethereum: "eth-mainnet", base: "base-mainnet" };
-const alchemyClients = new Map<string, ProviderClient>();
-function alchemyClient(net: string) {
-  let c = alchemyClients.get(net);
-  if (!c) {
-    c = new ProviderClient("alchemy", `https://${net}.g.alchemy.com/v2`, { perMinute: 120, burst: 10 });
-    alchemyClients.set(net, c);
-  }
-  return c;
-}
-
-interface AlchemyTransfer {
-  hash?: string;
-  from?: string;
-  to?: string | null;
-  value?: number | null;
-  asset?: string | null;
-  rawContract?: { address?: string | null };
-  metadata?: { blockTimestamp?: string };
-}
-
-export function parseAlchemyTransfers(chain: ChainId, wallet: string, transfers: AlchemyTransfer[]): WalletTransaction[] {
-  const w = wallet.toLowerCase();
-  return transfers
-    .filter((t) => t.hash && t.metadata?.blockTimestamp)
-    .map((t) => {
-      const incoming = t.to?.toLowerCase() === w;
-      return {
-        txHash: t.hash!,
-        blockTime: new Date(t.metadata!.blockTimestamp!),
-        direction: incoming ? "transfer_in" : "transfer_out",
-        tokenAddress: t.rawContract?.address ? normalizeAddress(chain, t.rawContract.address) : null,
-        tokenSymbol: t.asset ?? null,
-        amount: typeof t.value === "number" ? t.value : null,
-        amountUsd: null,
-        counterparty: (incoming ? t.from : t.to) ?? null,
-        raw: null,
-      } satisfies WalletTransaction;
-    });
-}
-
-export const alchemyWallets: WalletActivityProvider = {
-  name: "alchemy",
-  supports: (chain) => CHAINS[chain].kind === "evm" && chain in ALCHEMY_NETWORK,
-  configured: () => Boolean(env.alchemyApiKey),
-  async getTransactions(chain, address, limit = 50) {
-    if (!env.alchemyApiKey) throw new Error("ALCHEMY_API_KEY is not configured");
-    const net = ALCHEMY_NETWORK[chain];
-    if (!net) throw new Error(`Alchemy transfers are not supported for ${chain}`);
-    const maxCount = `0x${Math.min(100, limit).toString(16)}`;
-    const call = async (dir: "fromAddress" | "toAddress") => {
-      const res = await alchemyClient(net).post<{ result?: { transfers?: AlchemyTransfer[] } }>(
-        `/${env.alchemyApiKey}`,
-        {
-          jsonrpc: "2.0",
-          id: 1,
-          method: "alchemy_getAssetTransfers",
-          params: [{ [dir]: address, category: ["erc20"], withMetadata: true, order: "desc", maxCount, excludeZeroValue: true }],
-        },
-        { cacheSeconds: 60 },
-      );
-      return res.result?.transfers ?? [];
-    };
-    const [sent, received] = await Promise.all([call("fromAddress"), call("toAddress")]);
-    return parseAlchemyTransfers(chain, address, [...sent, ...received])
-      .sort((a, b) => b.blockTime.getTime() - a.blockTime.getTime())
-      .slice(0, limit);
-  },
-};
-
 export function walletProviderFor(chain: ChainId): WalletActivityProvider | null {
-  return [heliusWallets, alchemyWallets].find((p) => p.supports(chain)) ?? null;
+  return heliusWallets.supports(chain) ? heliusWallets : null;
 }

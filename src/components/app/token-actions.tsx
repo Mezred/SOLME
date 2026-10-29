@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, buttonClass } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { apiFetch } from "@/lib/client";
 
 export function WatchButton({ tokenId, watching: initial }: { tokenId: string; watching: boolean }) {
@@ -53,21 +52,5 @@ export function CopyAddress({ address }: { address: string }) {
     >
       {copied ? "Copied ✓" : address}
     </button>
-  );
-}
-
-export function TokenLinks({ tokenId, chain }: { tokenId: string; chain: string }) {
-  return (
-    <>
-      <Link href={`/app/alerts?new=1&tokenId=${tokenId}`} className={buttonClass("secondary", "sm")}>
-        Create alert
-      </Link>
-      <Link href={`/app/ai?tokenId=${tokenId}`} className={buttonClass("ai", "sm")}>
-        AI analysis
-      </Link>
-      <Link href={`/app/portfolio?addToken=${tokenId}&chain=${chain}`} className={buttonClass("ghost", "sm")}>
-        Log a trade
-      </Link>
-    </>
   );
 }

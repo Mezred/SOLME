@@ -52,14 +52,14 @@ test.describe("public site", () => {
 
 test.describe("authentication & authorization", () => {
   test("anonymous users are redirected from the dashboard and admin", async ({ page }) => {
-    await page.goto("/app/signals");
-    await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fsignals/);
+    await page.goto("/app/smart-dev");
+    await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fsmart-dev/);
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/login/);
   });
 
   test("protected APIs return 401 without a session", async ({ request }) => {
-    expect((await request.get("/api/signals")).status()).toBe(401);
+    expect((await request.get("/api/alerts")).status()).toBe(401);
     expect((await request.get("/api/watchlists")).status()).toBe(401);
   });
 
@@ -104,15 +104,9 @@ test.describe("authentication & authorization", () => {
 test.describe("entitlements, billing & data", () => {
   test("free plan is restricted on the server", async ({ page }) => {
     await signup(page);
-    // Advanced filters are ignored with an explanation.
-    const res = await page.request.get("/api/signals?minLiquidity=100000");
-    const body = await res.json();
-    expect(body.restrictions.join(" ")).toMatch(/require Pro/);
     // Wallet tracking requires a paid plan.
     const w = await post(page.request, "/api/wallets", { chain: "solana", address: "So11111111111111111111111111111111111111112" });
     expect(w.status()).toBe(402);
-    // CSV export is gated.
-    expect((await page.request.get("/api/portfolio/export")).status()).toBe(402);
   });
 
   test("checkout cannot unlock a plan without Stripe confirmation", async ({ page }) => {
@@ -126,30 +120,6 @@ test.describe("entitlements, billing & data", () => {
   test("webhooks without a valid signature are rejected", async ({ request }) => {
     const res = await request.post("/api/webhooks/stripe", { data: { id: "evt_fake", type: "customer.subscription.created" }, headers: { "stripe-signature": "t=1,v1=deadbeef" } });
     expect([400, 503]).toContain(res.status());
-  });
-
-  test("portfolio rejects oversells and records partial exits", async ({ page }) => {
-    await signup(page);
-    const pf = await (await page.request.get("/api/portfolios")).json();
-    const created = await post(page.request, "/api/positions", {
-      portfolioId: pf.current.id,
-      chain: "base",
-      tokenAddress: "0x00000000000000000000000000000000000000e2",
-      tokenSymbol: "E2E",
-      entry: { quantity: 100, price: 1, fee: 1, executedAt: new Date(Date.now() - 3_600_000).toISOString() },
-      takeProfits: [],
-    });
-    expect(created.status()).toBe(201);
-    const { id } = await created.json();
-    const over = await post(page.request, `/api/positions/${id}/trades`, { side: "sell", quantity: 150, price: 2, fee: 0, executedAt: new Date().toISOString() });
-    expect(over.status()).toBe(400);
-    const partial = await post(page.request, `/api/positions/${id}/trades`, { side: "sell", quantity: 40, price: 2, fee: 0.5, executedAt: new Date().toISOString() });
-    expect(partial.status()).toBe(201);
-    const after = await (await page.request.get("/api/portfolios")).json();
-    const pos = after.positions.find((p: { id: string }) => p.id === id);
-    // avg cost 1.01 → realized = 40*2 - 0.5 - 40*1.01 = 39.1
-    expect(pos.metrics.realizedPnl).toBeCloseTo(39.1, 5);
-    expect(pos.metrics.openQuantity).toBe(60);
   });
 
   test("watchlists persist between sessions", async ({ page, browser }) => {

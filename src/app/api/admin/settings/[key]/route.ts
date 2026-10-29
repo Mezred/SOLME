@@ -16,12 +16,9 @@ const scoring = z.object({
   thresholds: z.object({
     min_liquidity_usd: z.number().min(0),
     min_volume_h24_usd: z.number().min(0),
-    signal_min_score: z.number().min(0).max(100),
-    signal_min_confidence: z.number().min(0).max(100),
-    dedup_hours: z.number().min(0.25).max(168),
-    rescore_delta: z.number().min(1).max(100),
+    min_score: z.number().min(0).max(100),
+    min_confidence: z.number().min(0).max(100),
     stale_after_minutes: z.number().min(1).max(1440),
-    signal_ttl_hours: z.number().min(1).max(720),
   }),
 });
 

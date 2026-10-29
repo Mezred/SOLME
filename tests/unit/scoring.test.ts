@@ -12,8 +12,8 @@ const settings: ScoringSettings = {
   },
   security_penalty: { critical: 100, high: 25, medium: 10, unknown: 5 },
   thresholds: {
-    min_liquidity_usd: 25000, min_volume_h24_usd: 10000, signal_min_score: 60, signal_min_confidence: 45,
-    dedup_hours: 6, rescore_delta: 10, stale_after_minutes: 15, signal_ttl_hours: 24,
+    min_liquidity_usd: 25000, min_volume_h24_usd: 10000, min_score: 60, min_confidence: 45,
+    stale_after_minutes: 15,
   },
 };
 
@@ -132,7 +132,7 @@ describe("scoreToken", () => {
       pairCreatedAt: new Date(now.getTime() - 48 * 60_000),
     }), settings);
     expect(r.eligibility.eligible).toBe(false);
-    expect(r.eligibility.reasons).toContain("Pair too new for a bullish signal");
+    expect(r.eligibility.reasons).toContain("Pair too new for a bullish pattern");
     expect(r.eligibility.reasons).toContain("Overextended move");
   });
 

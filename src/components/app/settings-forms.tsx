@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Button, Notice } from "@/components/ui";
 import { apiFetch } from "@/lib/client";
 
@@ -24,7 +24,7 @@ const Msg = ({ msg }: { msg: { tone: "info" | "down"; text: string } | null }) =
 function Toggle({ id, label, checked, onChange, disabled, hint }: { id: string; label: ReactNode; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; hint?: string }) {
   return (
     <label htmlFor={id} className="flex items-start gap-2 text-sm">
-      <input id={id} type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1fe08a]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input id={id} type="checkbox" className="mt-0.5 h-4 w-4 accent-up" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>{label}{hint && <span className="block text-xs text-fg-faint">{hint}</span>}</span>
     </label>
   );
@@ -54,18 +54,120 @@ export function ProfileForm({ initial, telegramConfigured, emailConfigured, chan
         <legend className="label">Alert delivery</legend>
         <Toggle id="s-inapp" label="In-app notifications" checked={f.notifyInApp} onChange={(v) => setF({ ...f, notifyInApp: v })} disabled hint="Always on — the inbox is the source of truth." />
         <Toggle id="s-email" label="Email alerts" checked={f.notifyEmail} onChange={(v) => setF({ ...f, notifyEmail: v })} disabled={!channels.includes("email")} hint={!channels.includes("email") ? "Available on Pro" : !emailConfigured ? "Email provider not configured on this server" : undefined} />
-        <Toggle id="s-tg" label="Telegram alerts" checked={f.notifyTelegram} onChange={(v) => setF({ ...f, notifyTelegram: v })} disabled={!channels.includes("telegram")} hint={!channels.includes("telegram") ? "Available on Pro" : !telegramConfigured ? "Telegram bot not configured on this server" : undefined} />
+        <Toggle id="s-tg" label="Telegram alerts" checked={f.notifyTelegram} onChange={(v) => setF({ ...f, notifyTelegram: v })} disabled={!channels.includes("telegram")} hint={!channels.includes("telegram") ? "Available on Pro" : !telegramConfigured ? "Telegram bot not configured on this server" : !f.telegramChatId ? "Connect Telegram below first" : undefined} />
       </fieldset>
-      {channels.includes("telegram") && (
-        <div className="max-w-sm">
-          <label htmlFor="s-tgid" className="label">Telegram chat ID</label>
-          <input id="s-tgid" className="input num" value={f.telegramChatId} onChange={(e) => setF({ ...f, telegramChatId: e.target.value })} placeholder="e.g. 123456789" />
-          <p className="mt-1 text-xs text-fg-faint">Start a chat with the NEXALPHA bot, send /start, then paste the numeric chat ID it replies with.</p>
-          <Button type="button" size="sm" className="mt-2" disabled={tg.busy || !telegramConfigured} onClick={() => tg.run({ action: "telegram_test" })}>Send test message</Button>
-          <Msg msg={tg.msg} />
+      {channels.includes("telegram") && telegramConfigured && (
+        <div className="max-w-md">
+          {initial.telegramChatId ? (
+            <>
+              <p className="text-sm"><span className="text-up">● Telegram connected</span> <span className="num text-xs text-fg-faint">chat {initial.telegramChatId}</span></p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button type="button" size="sm" disabled={tg.busy} onClick={() => tg.run({ action: "telegram_test" })}>Send test message</Button>
+                <Button type="button" size="sm" variant="ghost" disabled={tg.busy} onClick={async () => { if (await tg.run({ action: "telegram_unlink" })) router.refresh(); }}>Disconnect</Button>
+              </div>
+              <Msg msg={tg.msg} />
+            </>
+          ) : (
+            <TelegramConnect />
+          )}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs text-fg-faint hover:text-fg">Enter a chat ID manually</summary>
+            <label htmlFor="s-tgid" className="label mt-2">Telegram chat ID</label>
+            <input id="s-tgid" className="input num" value={f.telegramChatId} onChange={(e) => setF({ ...f, telegramChatId: e.target.value })} placeholder="e.g. 123456789" />
+            <p className="mt-1 text-xs text-fg-faint">Press Start in the bot first, then get your ID from @userinfobot and save.</p>
+          </details>
         </div>
       )}
       <Button type="submit" variant="primary" disabled={busy}>{busy ? "Saving…" : "Save preferences"}</Button>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+/** Opens the bot with a one-time link, then checks every 3 s (for up to 3 min) until the chat is linked. */
+export function TelegramConnect() {
+  const router = useRouter();
+  const [state, setState] = useState<"idle" | "opening" | "waiting" | "expired">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state !== "waiting") return;
+    const started = Date.now();
+    const id = setInterval(async () => {
+      if (Date.now() - started > 3 * 60_000) {
+        setState("expired");
+        return;
+      }
+      const r = await apiFetch<{ linked: boolean }>("/api/settings", { body: { action: "telegram_check" } });
+      if (r.data?.linked) router.refresh();
+    }, 3000);
+    return () => clearInterval(id);
+  }, [state, router]);
+
+  async function connect() {
+    setError(null);
+    setState("opening");
+    // Open the tab synchronously (inside the click) so popup blockers allow it, then point it at the link.
+    const tab = window.open("", "_blank");
+    const r = await apiFetch<{ url: string }>("/api/settings", { body: { action: "telegram_link" } });
+    if (!r.ok || !r.data) {
+      tab?.close();
+      setError(r.error ?? "Could not create a link");
+      setState("idle");
+      return;
+    }
+    if (tab) tab.location.href = r.data.url;
+    else window.location.href = r.data.url;
+    setState("waiting");
+  }
+
+  return (
+    <div>
+      <Button type="button" variant="primary" size="sm" disabled={state === "opening"} onClick={connect}>
+        {state === "waiting" ? "Open Telegram again" : "Connect Telegram"}
+      </Button>
+      <p className="mt-1 text-xs text-fg-faint">
+        {state === "waiting"
+          ? "Press Start in the Telegram chat that opened. This page updates by itself once it is linked."
+          : state === "expired"
+            ? "Still not linked. Click Connect Telegram to try again."
+            : "Opens our bot in Telegram. Press Start and your alerts will arrive there."}
+      </p>
+      {error && <Msg msg={{ tone: "down", text: error }} />}
+    </div>
+  );
+}
+
+/** Quiet hours for Telegram alerts (local time) and the 🔕 mutes set from alert buttons. */
+export function QuietHoursForm({ initial, mutes }: { initial: { start: string | null; end: string | null }; mutes: number }) {
+  const router = useRouter();
+  const [f, setF] = useState({ start: initial.start ?? "23:00", end: initial.end ?? "07:00" });
+  const [on, setOn] = useState(Boolean(initial.start));
+  const { msg, busy, run } = useAction();
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        await run({ action: "quiet_hours", start: on ? f.start : null, end: on ? f.end : null });
+      }}
+    >
+      <Toggle id="qh-on" label="Quiet hours" checked={on} onChange={setOn} hint="Telegram alerts in this window are held and sent as one summary when it ends. Uses your timezone above." />
+      {on && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div><label htmlFor="qh-s" className="label">From</label><input id="qh-s" type="time" className="input num w-32" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} required /></div>
+          <div><label htmlFor="qh-e" className="label">To</label><input id="qh-e" type="time" className="input num w-32" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} required /></div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" size="sm" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+        {mutes > 0 && (
+          <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={async () => { if (await run({ action: "clear_mutes" })) router.refresh(); }}>
+            Clear {mutes} mute{mutes === 1 ? "" : "s"}
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-fg-faint">Tap 🔕 under a Telegram alert to mute that coin, dev or wallet for 24h. In the chat, /mutes lists them and /unmute clears them.</p>
       <Msg msg={msg} />
     </form>
   );
@@ -121,7 +223,7 @@ export function DeleteAccount() {
         }
       }}
     >
-      <Notice tone="down">This permanently deletes your account, watchlists, portfolios, alerts and AI conversations. It cannot be undone.</Notice>
+      <Notice tone="down">This permanently deletes your account, watchlists, screener templates, alerts and Telegram link. It cannot be undone.</Notice>
       <div><label htmlFor="del-pw" className="label">Password</label><input id="del-pw" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
       <div><label htmlFor="del-c" className="label">Type DELETE to confirm</label><input id="del-c" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></div>
       <div className="flex gap-2"><Button type="submit" variant="danger" disabled={busy || confirm !== "DELETE"}>Permanently delete</Button><Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>

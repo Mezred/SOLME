@@ -1,12 +1,20 @@
 import { deliverNotifications, evaluateAlerts } from "@/lib/alerts/engine";
+import { pollTelegramUpdates } from "@/lib/alerts/telegram";
 import { queryOne } from "@/lib/db";
-import { env } from "@/lib/env";
-import { pruneOldData, runIngestionCycle, trackSignalOutcomes } from "@/lib/ingestion/pipeline";
+import { env, integrations } from "@/lib/env";
+import { pruneOldData, runIngestionCycle } from "@/lib/ingestion/pipeline";
 import { errorMessage, logger } from "@/lib/log";
 import { flushProviderHealth } from "@/lib/providers/health";
 import { getSetting } from "@/lib/settings";
+import { backfillDevs, linkDevFunders, pruneLaunchpad, refreshCurves, refreshLaunchMarkets, rescoreOldDevs } from "@/lib/launchpad/jobs";
+import { FAST_RULES } from "@/lib/alerts/rules";
+import { discoverEarlyBuyers, scoreDueWallets, watchSmartWallets } from "@/lib/wallets/smart-money";
 import { syncWallets } from "@/lib/wallets/sync";
+import { computeCopyStats } from "@/lib/wallets/copy";
+import { processCryptoPayments } from "@/lib/billing/crypto";
+import { checkFeeds } from "./feed-health";
 import { ensureDemoData } from "@/lib/demo/seed";
+import { checkFreshLaunches, checkNewLaunches, fillLaunchFacts } from "@/lib/launchpad/checks";
 import { enqueue, processJobs, recoverStuckJobs, type JobHandler } from "./queue";
 
 const log = logger("scheduler");
@@ -23,8 +31,16 @@ export const handlers: Record<string, JobHandler> = {
     }
     await evaluateAlerts();
   },
-  "signals.track": async () => {
-    await trackSignalOutcomes();
+  // Scam-check verdicts for fresh launches shown on Proven Devs / Trenches (small, credit-bounded batches).
+  "launchpad.checks": async () => {
+    if (!env.demoMode) await checkFreshLaunches();
+  },
+  // First check of a proven-dev launch within seconds; sent alerts are edited with the result.
+  "launchpad.checks.fast": async () => {
+    if (!env.demoMode) {
+      await checkNewLaunches();
+      await fillLaunchFacts();
+    }
   },
   "alerts.evaluate": async () => {
     await evaluateAlerts();
@@ -32,11 +48,53 @@ export const handlers: Record<string, JobHandler> = {
   "alerts.deliver": async () => {
     await deliverNotifications();
   },
+  // Bot messages: links chats that pressed Start on a Connect Telegram link.
+  "telegram.poll": async () => {
+    if (integrations.telegram) await pollTelegramUpdates();
+  },
+  // Crypto subscriptions: confirm open Solana Pay quotes on-chain, send renewal reminders.
+  "billing.crypto": async () => {
+    if (!env.demoMode) await processCryptoPayments();
+  },
   "wallets.sync": async () => {
     await syncWallets();
   },
+  "smartmoney.discover": async () => {
+    if (!env.demoMode) await discoverEarlyBuyers();
+  },
+  "wallets.score": async () => {
+    if (!env.demoMode) await scoreDueWallets();
+  },
+  // Launchpad and smart-wallet alerts are time-critical: evaluate and push them on every tick.
+  "alerts.fast": async () => {
+    if ((await evaluateAlerts(FAST_RULES)) > 0) await deliverNotifications();
+  },
+  "smartmoney.copystats": async () => {
+    if (!env.demoMode) await computeCopyStats();
+  },
+  "smartmoney.watch": async () => {
+    if (!env.demoMode) await watchSmartWallets();
+  },
+  "launchpad.curves": async () => {
+    if (!env.demoMode) await refreshCurves();
+  },
+  "launchpad.markets": async () => {
+    if (!env.demoMode) await refreshLaunchMarkets();
+  },
+  "launchpad.backfill": async () => {
+    if (env.demoMode) return;
+    await backfillDevs();
+    // Dev score v2: link creators by funder, and move older scores to the current version.
+    await linkDevFunders();
+    await rescoreOldDevs();
+  },
+  // Live feeds (launches, smart wallets): status for /api/health and Telegram alerts to admins on gaps.
+  "health.feeds": async () => {
+    await checkFeeds();
+  },
   "maintenance.prune": async () => {
     await pruneOldData();
+    await pruneLaunchpad();
   },
 };
 
@@ -47,8 +105,21 @@ async function scheduleRecurring() {
   const every: [string, number][] = [
     ["ingest.cycle", Math.max(30, ingestion.interval_seconds)],
     ["alerts.deliver", 30],
-    ["signals.track", 300],
+    ["launchpad.checks", 180],
+    ["launchpad.checks.fast", 15],
+    ["telegram.poll", 15],
+    ["billing.crypto", 15],
     ["wallets.sync", 600],
+    // Helius credit budget: see src/lib/wallets/smart-money.ts before shortening these.
+    ["smartmoney.discover", 1800],
+    ["wallets.score", 900],
+    ["launchpad.curves", 30],
+    ["alerts.fast", 15],
+    ["smartmoney.watch", 90],
+    ["smartmoney.copystats", 1800],
+    ["launchpad.markets", 600],
+    ["launchpad.backfill", 600],
+    ["health.feeds", 60],
     ["maintenance.prune", 3600],
   ];
   for (const [type, seconds] of every) {

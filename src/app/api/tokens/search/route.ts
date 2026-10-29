@@ -1,10 +1,11 @@
 import { getEntitlements } from "@/lib/billing/entitlements";
-import { CHAINS } from "@/lib/chains";
 import { searchTokens } from "@/lib/data/tokens";
 import { api, enforceRateLimit, ok, requireUser } from "@/lib/http";
 import { lookupAddress } from "@/lib/ingestion/lookup";
+import { dexscreener } from "@/lib/providers/dexscreener";
+import { rateLimit } from "@/lib/ratelimit";
 
-const ADDRESS = /^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/;
+const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 export const GET = api(async (req) => {
   const user = await requireUser();
@@ -16,9 +17,20 @@ export const GET = api(async (req) => {
   if (results.length === 0 && ADDRESS.test(q)) {
     // Unknown address: fetch it live from providers (rate-limited, shared cache).
     await enforceRateLimit(`lookup:${user.id}`, 10, 300);
-    const chains = ent.features.chains.filter((c) => (q.startsWith("0x") ? CHAINS[c].kind === "evm" : CHAINS[c].kind === "solana"));
-    await lookupAddress(q, chains);
+    await lookupAddress(q, ent.features.chains, { explicit: true });
     results = await searchTokens(q, ent.features.chains);
+  } else if (results.length === 0 && q.length >= 3 && (await rateLimit(`symsearch:${user.id}`, 20, 300)).allowed) {
+    // Unknown symbol or name: ask DexScreener and track the most liquid matches on the user's chains, so a
+    // well-known token is findable even before it trends. Spam and low-activity rules still apply in lookup.
+    // Its own budget (search-as-you-type must not block contract lookups); over budget it just finds nothing.
+    const pairs = await dexscreener.search(q).catch(() => []);
+    const top = pairs
+      .filter((p) => ent.features.chains.includes(p.chain) && (p.liquidityUsd ?? 0) > 0)
+      .sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0))
+      .filter((p, i, all) => all.findIndex((x) => x.chain === p.chain && x.tokenAddress === p.tokenAddress) === i)
+      .slice(0, 3);
+    await Promise.all(top.map((p) => lookupAddress(p.tokenAddress, [p.chain]).catch(() => [])));
+    if (top.length) results = await searchTokens(q, ent.features.chains);
   }
   return ok({ results });
 });

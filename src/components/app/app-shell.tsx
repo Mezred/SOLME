@@ -18,113 +18,62 @@ interface ShellUser {
 
 export function AppShell({ user, unread, demoMode, children }: { user: ShellUser; unread: number; demoMode: boolean; children: ReactNode }) {
   const path = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  // The mobile drawer is open only for the path it was opened on, so navigating closes it.
-  const [openedAt, setOpenedAt] = useState<string | null>(null);
-  const mobileOpen = openedAt === path;
-  const setMobileOpen = (open: boolean) => setOpenedAt(open ? path : null);
-
-  useEffect(() => {
-    try {
-      // Read after hydration: localStorage is unavailable during server render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCollapsed(localStorage.getItem("nx-sidebar") === "1");
-    } catch {}
-  }, []);
-
-  const toggle = () => {
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem("nx-sidebar", c ? "0" : "1");
-      } catch {}
-      return !c;
-    });
-  };
-
-  const groups = [...new Set(NAV.map((n) => n.group))];
   const isActive = (href: string) => (href === "/app" ? path === "/app" : path.startsWith(href));
-
-  const sidebar = (mobile: boolean) => (
-    <nav aria-label="Dashboard" className="flex h-full flex-col">
-      <div className={cx("flex h-14 items-center border-b border-line px-3", collapsed && !mobile ? "justify-center" : "justify-between")}>
-        {collapsed && !mobile ? <Link href="/app" aria-label="Overview"><LogoMark /></Link> : <Logo href="/app" />}
-        {!mobile && !collapsed && (
-          <button onClick={toggle} className="rounded p-1 text-fg-faint hover:text-fg" aria-label="Collapse sidebar">
-            <NavIcon d="M15 6l-6 6 6 6" className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      <div className="flex-1 overflow-y-auto py-3">
-        {groups.map((g) => (
-          <div key={g} className="mb-3">
-            {(!collapsed || mobile) && <div className="px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-faint">{g}</div>}
-            {NAV.filter((n) => n.group === g).map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                title={collapsed && !mobile ? n.label : undefined}
-                aria-current={isActive(n.href) ? "page" : undefined}
-                className={cx(
-                  "mx-2 flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
-                  collapsed && !mobile && "justify-center",
-                  isActive(n.href) ? "bg-ink-700 text-fg shadow-[inset_2px_0_0_#1fe08a]" : "text-fg-muted hover:bg-ink-750 hover:text-fg",
-                )}
-              >
-                <NavIcon d={n.icon} />
-                {(!collapsed || mobile) && <span className="truncate">{n.label}</span>}
-              </Link>
-            ))}
-          </div>
-        ))}
-        {user.role === "admin" && (
-          <div className="mx-2 mt-2 border-t border-line pt-3">
-            <Link href="/admin" className={cx("flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-warn hover:bg-ink-750", collapsed && !mobile && "justify-center")}>
-              <NavIcon d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" />
-              {(!collapsed || mobile) && "Admin panel"}
-            </Link>
-          </div>
-        )}
-      </div>
-      {!mobile && collapsed && (
-        <button onClick={toggle} className="m-2 rounded p-2 text-fg-faint hover:text-fg" aria-label="Expand sidebar">
-          <NavIcon d="M9 6l6 6-6 6" className="mx-auto h-4 w-4" />
-        </button>
-      )}
-    </nav>
-  );
+  // Account pages live in the user menu; the top bar carries the features.
+  const items = NAV.filter((n) => n.group !== "Account");
 
   return (
-    <div className="flex min-h-screen">
-      <aside className={cx("sticky top-0 hidden h-screen shrink-0 border-r border-line bg-ink-900 transition-[width] md:block", collapsed ? "w-[60px]" : "w-[228px]")}>{sidebar(false)}</aside>
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-[260px] border-r border-line bg-ink-900">{sidebar(true)}</aside>
+    <div className="flex min-h-screen flex-col">
+      {demoMode && (
+        <div className="border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-center text-xs text-warn" role="status">
+          DEMO MODE — all market data, scores and security results shown are synthetic and for demonstration only. Not real market data.
         </div>
       )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {demoMode && (
-          <div className="border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-center text-xs text-warn" role="status">
-            DEMO MODE — all market data, signals and security results shown are synthetic and for demonstration only. Not real market data.
-          </div>
-        )}
-        {!user.emailVerified && <VerifyBanner />}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-ink-950/90 px-3 backdrop-blur sm:px-5">
-          <button className="rounded p-1.5 text-fg-muted md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
-            <NavIcon d="M3 6h18M3 12h18M3 18h18" />
-          </button>
-          <TokenSearch />
-          <div className="ml-auto flex items-center gap-2">
-            <Badge tone={user.plan === "Free" ? "neutral" : "ai"}>{user.plan}</Badge>
+      {!user.emailVerified && <VerifyBanner />}
+      <header className="sticky top-0 z-30 border-b border-line bg-ink-950/95 backdrop-blur">
+        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5 lg:px-6">
+          <Link href="/app" aria-label="Overview" className="shrink-0 sm:hidden"><LogoMark /></Link>
+          <span className="hidden shrink-0 sm:block"><Logo href="/app" /></span>
+          <div className="mx-auto w-full max-w-md"><TokenSearch /></div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="hidden sm:inline-flex"><Badge tone={user.plan === "Free" ? "neutral" : "ai"}>{user.plan}</Badge></span>
             <Link href="/app/alerts?tab=inbox" className="relative rounded-md p-2 text-fg-muted hover:bg-ink-750 hover:text-fg" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
               <NavIcon d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Zm4 4h4" />
               {unread > 0 && <span className="num absolute right-1 top-1 min-w-4 rounded-full bg-down px-1 text-center text-[10px] font-semibold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
             </Link>
             <UserMenu user={user} />
           </div>
-        </header>
-        <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-5 sm:px-5 lg:px-6">{children}</main>
-      </div>
+        </div>
+        {/* Feature tabs: centered; when they no longer fit, the row scrolls sideways instead of hiding behind a drawer. */}
+        <nav aria-label="Dashboard" className="mx-auto w-full max-w-[1600px] overflow-x-auto px-1 sm:px-3 lg:px-4 [scrollbar-width:none]">
+          <ul className="mx-auto flex h-11 w-max items-stretch">
+            {items.map((n) => (
+              <li key={n.href} className="flex">
+                <Link
+                  href={n.href}
+                  aria-current={isActive(n.href) ? "page" : undefined}
+                  className={cx(
+                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13px] transition-colors",
+                    isActive(n.href) ? "border-up text-up" : "border-transparent text-fg-muted hover:text-fg",
+                  )}
+                >
+                  <NavIcon d={n.icon} className="h-4 w-4" />
+                  {n.label}
+                </Link>
+              </li>
+            ))}
+            {user.role === "admin" && (
+              <li className="flex">
+                <Link href="/admin" className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] text-warn hover:text-fg">
+                  <NavIcon d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" className="h-4 w-4" />
+                  Admin
+                </Link>
+              </li>
+            )}
+          </ul>
+        </nav>
+      </header>
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-5 sm:px-5 lg:px-6">{children}</main>
     </div>
   );
 }
@@ -133,7 +82,7 @@ function VerifyBanner() {
   const [state, setState] = useState<"idle" | "sent" | "error">("idle");
   const [devUrl, setDevUrl] = useState<string | null>(null);
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-info/30 bg-info/10 px-4 py-1.5 text-xs text-[#8db6ff]">
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-line-strong bg-ink-900 px-4 py-1.5 text-xs text-up-soft">
       <span>Verify your email to enable email alerts and billing.</span>
       {state === "sent" ? (
         devUrl ? <a href={devUrl} className="underline">Dev: open verification link</a> : <span>Sent — check your inbox.</span>

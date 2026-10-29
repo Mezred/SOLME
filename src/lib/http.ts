@@ -95,7 +95,10 @@ export const requireAdmin = () => requireRole("admin");
 export async function enforceRateLimit(key: string, limit: number, windowSeconds: number) {
   const r = await rateLimit(key, limit, windowSeconds);
   if (!r.allowed) {
-    throw new ApiError(429, `Too many requests. Try again after ${r.resetAt.toISOString()}.`, "rate_limited", {
+    // Human-readable wait time for the UI; the exact reset time stays available in the error details.
+    const minutes = Math.max(1, Math.ceil((r.resetAt.getTime() - Date.now()) / 60_000));
+    const wait = minutes < 60 ? `${minutes} minute${minutes === 1 ? "" : "s"}` : `${Math.ceil(minutes / 60)} hour${minutes > 60 ? "s" : ""}`;
+    throw new ApiError(429, `Too many attempts. Please try again in ${wait}.`, "rate_limited", {
       resetAt: r.resetAt,
     });
   }

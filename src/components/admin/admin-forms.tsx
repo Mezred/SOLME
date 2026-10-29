@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button, cx, Notice } from "@/components/ui";
+import { CHAIN_IDS, CHAINS } from "@/lib/chains";
 import { apiFetch } from "@/lib/client";
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
@@ -42,7 +43,7 @@ export function JsonSettingsForm({ endpoint, method = "PUT", initial, title, nul
       if (typeof v === "boolean") {
         return (
           <label key={id} htmlFor={id} className="flex items-center gap-2 text-sm">
-            <input id={id} type="checkbox" className="h-4 w-4 accent-[#1fe08a]" checked={v} onChange={(e) => setPath(p, e.target.checked)} />
+            <input id={id} type="checkbox" className="h-4 w-4 accent-up" checked={v} onChange={(e) => setPath(p, e.target.checked)} />
             {label}
           </label>
         );
@@ -184,7 +185,7 @@ export function DocumentWalletForm() {
         if (r.ok) router.refresh();
       }}
     >
-      <div><label className="label" htmlFor="dw-chain">Chain</label><select id="dw-chain" className="input" value={f.chain} onChange={set("chain")}><option value="solana">Solana</option><option value="ethereum">Ethereum</option><option value="bsc">BNB Smart Chain</option><option value="base">Base</option></select></div>
+      <div><label className="label" htmlFor="dw-chain">Chain</label><select id="dw-chain" className="input" value={f.chain} onChange={set("chain")}>{CHAIN_IDS.map((c) => <option key={c} value={c}>{CHAINS[c].name}</option>)}</select></div>
       <div className="sm:col-span-2"><label className="label" htmlFor="dw-addr">Address</label><input id="dw-addr" className="input num" value={f.address} onChange={set("address")} required /></div>
       <div><label className="label" htmlFor="dw-label">Label</label><input id="dw-label" className="input" value={f.label} onChange={set("label")} required /></div>
       <div><label className="label" htmlFor="dw-class">Classification</label><select id="dw-class" className="input" value={f.classification} onChange={set("classification")}><option value="fund">Fund</option><option value="whale">Whale</option><option value="smart_money">Smart Money</option><option value="exchange">Exchange</option></select></div>

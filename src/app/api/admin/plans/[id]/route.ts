@@ -9,9 +9,6 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const features = z.object({
   chains: z.array(z.enum(CHAIN_IDS as [string, ...string[]])).min(1),
-  signal_feed_limit: z.number().int().min(1).max(100000),
-  signal_delay_minutes: z.number().int().min(0).max(1440),
-  signal_history_days: z.number().int().min(1).max(3650),
   advanced_filters: z.boolean(),
   max_watchlists: z.number().int().min(1).max(1000),
   max_watchlist_items: z.number().int().min(1).max(100000),

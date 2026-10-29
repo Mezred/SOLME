@@ -12,6 +12,7 @@
     "ingest": "tsx scripts/ingest-once.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "db:copy-to-postgres": "tsx scripts/copy-to-postgres.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "pretest": "node scripts/embed-migrations.mjs",
@@ -24,6 +25,7 @@
     "lightweight-charts": "^5.2.1",
     "next": "16.4.3",
     "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "^4.6.7"
@@ -33,6 +35,7 @@
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

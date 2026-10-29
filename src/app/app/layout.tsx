@@ -5,7 +5,7 @@ import { getEntitlements } from "@/lib/billing/entitlements";
 import { queryOne } from "@/lib/db";
 import { env } from "@/lib/env";
 
-export const metadata: Metadata = { title: { default: "Terminal", template: "%s · NEXALPHA" }, robots: { index: false } };
+export const metadata: Metadata = { title: { default: "Terminal", template: "%s · SOLME" }, robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {

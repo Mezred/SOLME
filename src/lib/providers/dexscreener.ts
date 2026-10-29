@@ -59,7 +59,7 @@ export function mapDexscreenerPair(p: DsPair): MarketPairData | null {
     liquidityUsd: n(p.liquidity?.usd),
     marketCap: n(p.marketCap),
     fdv: n(p.fdv),
-    txns: { m5: tx("m5"), h1: tx("h1"), h24: tx("h24") },
+    txns: { m5: tx("m5"), h1: tx("h1"), h6: tx("h6"), h24: tx("h24") },
     websites: (p.info?.websites ?? []).map((w) => w.url).filter(Boolean),
     socials: (p.info?.socials ?? []).filter((s) => s?.url),
     promoted: (p.boosts?.active ?? 0) > 0,
@@ -125,3 +125,32 @@ export const dexscreener: MarketDataProvider & DiscoveryProvider = {
     return out;
   },
 };
+
+/** A pool of a token as DexScreener lists it, with the two sides of its liquidity. */
+export interface TokenPool {
+  pairAddress: string;
+  dexId: string | null;
+  quoteSymbol: string | null;
+  quoteAddress: string | null;
+  liquidityUsd: number | null;
+  /** Amount of the quote asset (e.g. SOL) in the pool. */
+  liquidityQuote: number | null;
+  pairCreatedAt: number | null;
+}
+
+/** Every pool of a Solana token, deepest first (one request). */
+export async function getTokenPools(mint: string): Promise<TokenPool[]> {
+  const list = await pairs.get<(DsPair & { liquidity?: { usd?: number; quote?: number } })[] | null>(`/token-pairs/v1/solana/${mint}`, { cacheSeconds: 30, nullOn: [404] });
+  return (list ?? [])
+    .filter((p) => p.baseToken?.address === mint)
+    .map((p) => ({
+      pairAddress: p.pairAddress,
+      dexId: p.dexId ?? null,
+      quoteSymbol: p.quoteToken?.symbol ?? null,
+      quoteAddress: p.quoteToken?.address ?? null,
+      liquidityUsd: n(p.liquidity?.usd),
+      liquidityQuote: n(p.liquidity?.quote),
+      pairCreatedAt: p.pairCreatedAt ?? null,
+    }))
+    .sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0));
+}

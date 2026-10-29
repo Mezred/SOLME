@@ -20,10 +20,9 @@ All endpoints are same-origin JSON route handlers under `/api`. Authentication u
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/signals` | Signal feed. Query: `chain` (csv: solana,ethereum,bsc,base), `type` (csv: momentum,accumulation,breakout_watch,distribution,high_risk), `strength`, `q`, `minScore`, `status=active\|all`, `sort` (created,score,confidence,volume,liquidity,change_h1,change_h24,mcap), `dir`, `page`, `pageSize` (≤100). Pro filters: `minConfidence`, `minLiquidity`, `minVolume`, `minMcap`, `maxMcap`, `maxAgeHours`, `minChangeH1`, `minChangeH24`. Response `{ rows, total, page, pageSize, restrictions[] }` — `restrictions` explains any plan limits applied (delay, chains, feed size, ignored filters). |
 | `GET /api/stream/signals` | Server-sent events: `signals` event with the count of new signals (checked every 15s). |
 | `GET /api/tokens/search?q=` | Tracked tokens by symbol/name/address. Unknown contract addresses are fetched live from providers (rate-limited). |
-| `GET /api/tokens/{id}/candles?tf=15m\|1h\|4h\|1d` | OHLCV from GeckoTerminal (`source`), falls back to NEXALPHA snapshots (`source: "snapshots"`, `degraded`). Demo tokens return labelled synthetic candles. |
+| `GET /api/tokens/{id}/candles?tf=15m\|1h\|4h\|1d` | OHLCV from GeckoTerminal (`source`), falls back to SOLME snapshots (`source: "snapshots"`, `degraded`). Demo tokens return labelled synthetic candles. |
 | `GET /api/health` | Public liveness/readiness: DB driver & latency, market-data age, configured integrations (booleans only). |
 
 ## Watchlists
@@ -36,18 +35,6 @@ All endpoints are same-origin JSON route handlers under `/api`. Authentication u
 | `POST /api/watchlists/items` | `{ tokenId, watchlistId? }` (plan limit, chain must be in plan) |
 | `PATCH /api/watchlists/items` | `{ itemId, isFavorite?, notes? }` |
 | `DELETE /api/watchlists/items?tokenId=` or `?itemId=` | – |
-
-## Portfolio (manual, user-reported)
-
-| Endpoint | Body |
-|---|---|
-| `GET /api/portfolios?id=` | Positions with trades and computed metrics + portfolio summary. |
-| `POST /api/portfolios` | `{ name }` |
-| `POST /api/positions` | `{ portfolioId, tokenId? \| (chain, tokenAddress, tokenSymbol), entry: { quantity, price, fee, executedAt }, stopLoss?, takeProfits?: [{ price }], notes? }` |
-| `PATCH /api/positions/{id}` · `DELETE` | `{ stopLoss?, takeProfits?, notes? }` |
-| `POST /api/positions/{id}/trades` | `{ side: buy\|sell, quantity, price, fee, executedAt, note? }` — rejects histories that oversell (400). |
-| `DELETE /api/positions/{id}/trades?tradeId=` | Recomputes status; deleting the last trade deletes the position. |
-| `GET /api/portfolio/export` | CSV of all trades (Pro+). Formula-injection safe. |
 
 ## Alerts & notifications
 
@@ -66,20 +53,13 @@ Rule types and params: `price_above`/`price_below` `{ price }` (fires on crossin
 | `GET /api/wallets` · `POST /api/wallets` | – · `{ chain, address, label? }` (Pro+, plan limit) |
 | `PATCH /api/wallets/{id}` · `DELETE` | `{ custom_label?, alerts_enabled? }` |
 
-## AI
-
-| Endpoint | Body |
-|---|---|
-| `POST /api/ai/chat` | `{ message, conversationId?, kind: chat\|analysis }` → `{ conversationId, reply, sources[{type,id,label,as_of}], usage, model }`. Daily plan quota; `analysis` requires Pro+. |
-| `GET /api/ai/conversations` · `?id=` · `DELETE ?id=` | List / messages / delete. |
-
 ## Billing
 
 | Endpoint | Body |
 |---|---|
 | `POST /api/billing/checkout` | `{ planId: pro\|elite, interval: month\|year }` → `{ url }` (Stripe Checkout). Requires verified email. |
 | `POST /api/billing/manage` | `{ action: portal }` → `{ url }`; `{ action: cancel\|resume }`; `{ action: change, planId, interval }` (prorated). State changes arrive via webhook. |
-| `POST /api/webhooks/stripe` | Stripe → NEXALPHA. Verifies `Stripe-Signature` (5-min tolerance), processes each event id once. Handles `checkout.session.completed`, `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`. |
+| `POST /api/webhooks/stripe` | Stripe → SOLME. Verifies `Stripe-Signature` (5-min tolerance), processes each event id once. Handles `checkout.session.completed`, `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`. |
 
 Configure the Stripe webhook endpoint `https://<domain>/api/webhooks/stripe` with those events.
 

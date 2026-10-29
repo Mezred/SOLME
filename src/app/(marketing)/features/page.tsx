@@ -2,27 +2,25 @@ import type { Metadata } from "next";
 import { FeatureCard, Icons, Section } from "@/components/marketing/sections";
 import { ButtonLink } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Features", description: "Live signals, explainable AI scores, token security, wallet intelligence, alerts and portfolio tracking across four chains." };
+export const metadata: Metadata = { title: "Features", description: "Proven-dev launches, a DEX screener, scam checks, explainable scores, smart-wallet tracking and Telegram alerts for Solana memecoins." };
 
 const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string, string, "up" | "ai" | "down" | "info"][] }[] = [
   {
-    title: "Signals & discovery",
+    title: "Discovery",
     intro: "One centralized engine scans every chain and shares the results with all users.",
     items: [
-      ["radar", "Live signal feed", "Momentum, accumulation, breakout-watch, distribution and high-risk signals with filters for chain, score, liquidity, volume, market cap, age and price change."],
+      ["radar", "Proven Devs", "New launches from creators whose earlier coins migrated, each with a background scam check."],
       ["rocket", "New launches", "Fresh pairs across chains, deduplicated by chain and contract, with liquidity thresholds and security status."],
-      ["chart", "Token screener", "Every tracked token with sortable metrics, volume acceleration, buy/sell share and security filters."],
-      ["chart", "Token pages", "Candlestick charts, 5m–24h metrics, liquidity pairs, factor breakdowns, scenario levels and full security reports."],
+      ["chart", "Token screener", "Every tracked pair with filters for market cap, pair age, transactions, volume and 1h/6h/24h change. Save filters as templates."],
+      ["chart", "Token pages", "Candlestick charts, 5m–24h metrics, liquidity pairs, factor breakdowns and full security reports."],
     ].map(([i, t, d]) => [i, t, d, "up"]) as never,
   },
   {
     title: "Analysis you can audit",
-    intro: "Deterministic scores; AI explains, never invents.",
+    intro: "Deterministic scores from documented rules.",
     items: [
       ["brain", "Explainable scoring", "Separate quality, momentum, risk and confidence scores from eleven documented, weighted factors — with evidence and missing data."],
-      ["chat", "AI chat", "Ask about tokens, signals, wallets and markets. Answers are grounded in retrieved data and cite timestamps."],
-      ["brain", "Deep research reports", "One-click reports covering snapshot, score drivers, security, liquidity, track record, scenarios and data gaps."],
-      ["chart", "Measured track record", "Signal History records observed returns 1h, 6h and 24h after each signal — including losses."],
+      ["shield", "Check a coin", "Paste a contract on the site or send it to the Telegram bot: Tradeable, Watch or Avoid, with every check and its reason."],
     ].map(([i, t, d]) => [i, t, d, "ai"]) as never,
   },
   {
@@ -40,9 +38,8 @@ const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string
     intro: "Watch, record and get notified.",
     items: [
       ["wallet", "Whale tracker", "Follow public wallets' transfers and swaps. Classifications only with documented sources."],
-      ["bell", "Eight alert types", "Price crosses, % moves, volume spikes, liquidity drops, new signals, security changes and wallet activity — in-app, email and Telegram."],
-      ["chart", "Portfolio", "Manual positions with partial exits, fees, stop-loss and take-profits; realized/unrealized P&L, win rate, drawdown, equity curve and CSV export."],
-      ["rocket", "Strategy templates", "Pre-built research workflows that apply filters in one click."],
+      ["bell", "Eight alert types", "Price crosses, % moves, volume spikes, liquidity drops, proven-dev launches, curve milestones, security changes and wallet activity — in-app, email and Telegram."],
+      ["rocket", "Watchlists", "Keep the coins you are watching in one place, with live metrics and alerts."],
     ].map(([i, t, d]) => [i, t, d, "info"]) as never,
   },
 ];

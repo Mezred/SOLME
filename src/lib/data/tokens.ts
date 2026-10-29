@@ -20,7 +20,7 @@ export interface TokenRow {
     socials?: { type: string; url: string }[];
     promoted?: boolean;
     discovery?: string;
-    last_score?: { ai: number; quality: number | null; momentum: number | null; risk: number; confidence: number; type: string | null; at: string };
+    last_score?: { ai: number; quality: number | null; momentum: number | null; risk: number; confidence: number; type: string | null; eligible?: boolean; at: string };
   };
   first_seen_at: Date;
   // latest snapshot
@@ -42,29 +42,76 @@ export interface TokenRow {
   captured_at: Date | null;
   security_risk: string | null;
   holder_count: number | null;
+  /** Launchpad the coin started on (pump, bonk), when SOLME recorded its launch. */
+  launchpad: string | null;
+  /** DEX of the main pair (DexScreener dexId). */
+  dex_id: string | null;
 }
 
 const csv = <T extends string>(allowed: readonly T[]) =>
   z.string().optional().transform((v) => (v ? v.split(",").filter((x): x is T => (allowed as readonly string[]).includes(x)) : []));
 const optNum = z.coerce.number().finite().optional().catch(undefined);
 
-export const TOKEN_SORTS = ["score", "volume", "liquidity", "change_h1", "change_h24", "mcap", "age", "volume_accel", "updated"] as const;
+/**
+ * Range filters, DexScreener's set plus SOLME's own: each id gives a `min<Id>` and a `max<Id>` query parameter.
+ * Names match the parameters saved templates and alerts already use (minVolume = 24h volume, maxAgeHours…).
+ * `free`: available on every plan; the rest need advanced filters (Pro).
+ */
+export const RANGE_FILTERS = {
+  Liquidity: { sql: "snap.liquidity_usd", free: true },
+  Mcap: { sql: "COALESCE(snap.market_cap, snap.fdv)", free: true },
+  Fdv: { sql: "snap.fdv", free: false },
+  AgeHours: { sql: "(EXTRACT(EPOCH FROM (now() - t.pair_created_at)) / 3600)", free: true },
+  Volume: { sql: "snap.volume_h24", free: true },
+  VolumeH6: { sql: "snap.volume_h6", free: false },
+  VolumeH1: { sql: "snap.volume_h1", free: false },
+  VolumeM5: { sql: "snap.volume_m5", free: false },
+  TxnsH24: { sql: "(snap.buys_h24 + snap.sells_h24)", free: true },
+  TxnsH6: { sql: "(snap.buys_h6 + snap.sells_h6)", free: false },
+  TxnsH1: { sql: "(snap.buys_h1 + snap.sells_h1)", free: false },
+  TxnsM5: { sql: "(snap.buys_m5 + snap.sells_m5)", free: false },
+  BuysH24: { sql: "snap.buys_h24", free: false },
+  BuysH6: { sql: "snap.buys_h6", free: false },
+  BuysH1: { sql: "snap.buys_h1", free: false },
+  BuysM5: { sql: "snap.buys_m5", free: false },
+  SellsH24: { sql: "snap.sells_h24", free: false },
+  SellsH6: { sql: "snap.sells_h6", free: false },
+  SellsH1: { sql: "snap.sells_h1", free: false },
+  SellsM5: { sql: "snap.sells_m5", free: false },
+  ChangeH24: { sql: "snap.price_change_h24", free: true },
+  ChangeH6: { sql: "snap.price_change_h6", free: false },
+  ChangeH1: { sql: "snap.price_change_h1", free: false },
+  ChangeM5: { sql: "snap.price_change_m5", free: false },
+  /** % of last-hour transactions that were buys. */
+  BuyShare: { sql: "(snap.buys_h1::numeric / NULLIF(snap.buys_h1 + snap.sells_h1, 0) * 100)", free: false },
+  /** Market cap ÷ liquidity (high = thin pool for the valuation, easy to dump). */
+  McapLiq: { sql: "(COALESCE(snap.market_cap, snap.fdv) / NULLIF(snap.liquidity_usd, 0))", free: false },
+  DevScore: { sql: "dp.score", free: false },
+  Score: { sql: "(t.metadata->'last_score'->>'ai')::int", free: false },
+} as const;
+export type RangeId = keyof typeof RANGE_FILTERS;
+const RANGE_IDS = Object.keys(RANGE_FILTERS) as RangeId[];
+type RangeKey = `min${RangeId}` | `max${RangeId}`;
+const rangeShape = Object.fromEntries(RANGE_IDS.flatMap((id) => [[`min${id}`, optNum], [`max${id}`, optNum]])) as Record<RangeKey, typeof optNum>;
+
+/** DEX of the coin's main pair (DexScreener dexId). Bonding curves are listed as pumpfun / launchlab / meteoradbc. */
+export const DEX_IDS = ["pumpswap", "raydium", "meteora", "orca", "pumpfun", "launchlab", "meteoradbc"] as const;
+
+export const TOKEN_SORTS = ["score", "volume", "volume_h1", "liquidity", "change_m5", "change_h1", "change_h6", "change_h24", "mcap", "age", "volume_accel", "txns", "txns_h1", "updated"] as const;
 
 export const tokenFilterSchema = z.object({
   chain: csv(CHAIN_IDS),
   q: z.string().trim().max(80).optional().catch(undefined),
-  minScore: optNum,
-  minLiquidity: optNum,
-  minVolume: optNum,
-  minMcap: optNum,
-  maxMcap: optNum,
-  maxAgeHours: optNum,
-  minAgeHours: optNum,
-  minChangeH1: optNum,
-  maxChangeH1: optNum,
-  minChangeH24: optNum,
-  maxChangeH24: optNum,
-  minBuyShare: optNum,
+  ...rangeShape,
+  dex: csv(DEX_IDS),
+  /** Launchpad origin; "none" = not a recorded launchpad coin. */
+  launchpad: csv(["pump", "bonk", "none"] as const),
+  /** Only coins with a website or socials on DexScreener (an enhanced token profile). */
+  profile: z.enum(["1"]).optional().catch(undefined),
+  /** Only coins with active paid DexScreener boosts. Promotion is not a sign of quality. */
+  boosted: z.enum(["1"]).optional().catch(undefined),
+  /** Contract OK (no high/critical findings); launchpad coins must also pass the full background check when they have one. */
+  scamCheck: z.enum(["passed"]).optional().catch(undefined),
   risk: csv(["low", "medium", "high", "critical", "unknown"] as const),
   includeSpam: z.enum(["1"]).optional().catch(undefined),
   sort: z.enum(TOKEN_SORTS).optional().catch(undefined),
@@ -77,12 +124,17 @@ export type TokenFilters = z.infer<typeof tokenFilterSchema>;
 const TOKEN_SORT_SQL: Record<(typeof TOKEN_SORTS)[number], string> = {
   score: "(t.metadata->'last_score'->>'ai')::int",
   volume: "snap.volume_h24",
+  volume_h1: "snap.volume_h1",
   liquidity: "snap.liquidity_usd",
+  change_m5: "snap.price_change_m5",
   change_h1: "snap.price_change_h1",
+  change_h6: "snap.price_change_h6",
   change_h24: "snap.price_change_h24",
   mcap: "COALESCE(snap.market_cap, snap.fdv)",
   age: "t.pair_created_at",
   volume_accel: "(snap.volume_h1 / NULLIF(snap.volume_h24 / 24, 0))",
+  txns: "(snap.buys_h24 + snap.sells_h24)",
+  txns_h1: "(snap.buys_h1 + snap.sells_h1)",
   updated: "snap.captured_at",
 };
 
@@ -90,11 +142,15 @@ const TOKEN_SELECT = `
   t.id, t.chain, t.address, t.symbol, t.name, t.logo_url, t.pair_created_at, t.is_demo, t.is_spam, t.spam_reason, t.metadata, t.first_seen_at,
   snap.price_usd, snap.price_change_m5, snap.price_change_h1, snap.price_change_h6, snap.price_change_h24, snap.price_change_d7,
   snap.volume_h1, snap.volume_h24, snap.liquidity_usd, snap.market_cap, snap.fdv, snap.buys_h1, snap.sells_h1, snap.buys_h24, snap.sells_h24,
-  snap.captured_at, sec.risk_level AS security_risk, sec.holder_count`;
+  snap.captured_at, sec.risk_level AS security_risk, sec.holder_count, lp.pool AS launchpad, mp.dex_id`;
 
 const TOKEN_JOINS = `
   LEFT JOIN LATERAL (SELECT * FROM market_snapshots ms WHERE ms.token_id = t.id ORDER BY ms.captured_at DESC LIMIT 1) snap ON true
-  LEFT JOIN LATERAL (SELECT risk_level, holder_count FROM token_security_checks sc WHERE sc.token_id = t.id ORDER BY sc.checked_at DESC LIMIT 1) sec ON true`;
+  LEFT JOIN LATERAL (SELECT risk_level, holder_count FROM token_security_checks sc WHERE sc.token_id = t.id ORDER BY sc.checked_at DESC LIMIT 1) sec ON true
+  LEFT JOIN launchpad_tokens lp ON lp.mint = t.address
+  LEFT JOIN dev_profiles dp ON dp.creator = lp.creator
+  LEFT JOIN launch_checks lc ON lc.mint = t.address
+  LEFT JOIN market_pairs mp ON mp.id = snap.pair_id`;
 
 export async function listTokens(f: TokenFilters, allowedChains: ChainId[], opts: { advanced: boolean }) {
   const where: string[] = ["t.is_demo = $1", "snap.captured_at IS NOT NULL"];
@@ -111,24 +167,36 @@ export async function listTokens(f: TokenFilters, allowedChains: ChainId[], opts
     const like = p(`%${f.q.toLowerCase()}%`);
     where.push(`(lower(t.symbol) LIKE ${like} OR lower(t.name) LIKE ${like} OR t.address = ${p(f.q)} OR lower(t.address) = ${p(f.q.toLowerCase())})`);
   }
-  if (f.minLiquidity !== undefined) where.push(`snap.liquidity_usd >= ${p(f.minLiquidity)}`);
-  if (f.maxAgeHours !== undefined) where.push(`t.pair_created_at >= now() - make_interval(hours => ${p(f.maxAgeHours)})`);
-  if (f.minVolume !== undefined) where.push(`snap.volume_h24 >= ${p(f.minVolume)}`);
-
-  const adv = [f.minScore, f.minMcap, f.maxMcap, f.minAgeHours, f.minChangeH1, f.maxChangeH1, f.minChangeH24, f.maxChangeH24, f.minBuyShare].some((x) => x !== undefined) || f.risk.length > 0;
-  if (adv && !opts.advanced) restrictions.push("Score, market cap, price-change, buy-share and risk filters require Pro.");
-  else {
-    if (f.minScore !== undefined) where.push(`(t.metadata->'last_score'->>'ai')::int >= ${p(f.minScore)}`);
-    if (f.minMcap !== undefined) where.push(`COALESCE(snap.market_cap, snap.fdv) >= ${p(f.minMcap)}`);
-    if (f.maxMcap !== undefined) where.push(`COALESCE(snap.market_cap, snap.fdv) <= ${p(f.maxMcap)}`);
-    if (f.minAgeHours !== undefined) where.push(`t.pair_created_at <= now() - make_interval(hours => ${p(f.minAgeHours)})`);
-    if (f.minChangeH1 !== undefined) where.push(`snap.price_change_h1 >= ${p(f.minChangeH1)}`);
-    if (f.maxChangeH1 !== undefined) where.push(`snap.price_change_h1 <= ${p(f.maxChangeH1)}`);
-    if (f.minChangeH24 !== undefined) where.push(`snap.price_change_h24 >= ${p(f.minChangeH24)}`);
-    if (f.maxChangeH24 !== undefined) where.push(`snap.price_change_h24 <= ${p(f.maxChangeH24)}`);
-    if (f.minBuyShare !== undefined) where.push(`snap.buys_h1::numeric / NULLIF(snap.buys_h1 + snap.sells_h1, 0) * 100 >= ${p(f.minBuyShare)}`);
-    if (f.risk.length) where.push(`COALESCE(sec.risk_level, 'unknown') = ANY(${p(f.risk)})`);
+  // Ranges: free ones always apply; advanced ones only on plans with advanced filters (the rest are reported).
+  let locked = false;
+  for (const id of RANGE_IDS) {
+    const { sql, free } = RANGE_FILTERS[id];
+    const lo = f[`min${id}`];
+    const hi = f[`max${id}`];
+    if (lo === undefined && hi === undefined) continue;
+    if (!free && !opts.advanced) {
+      locked = true;
+      continue;
+    }
+    if (lo !== undefined) where.push(`${sql} >= ${p(lo)}`);
+    if (hi !== undefined) where.push(`${sql} <= ${p(hi)}`);
   }
+  if (f.dex.length) where.push(`mp.dex_id = ANY(${p(f.dex)})`);
+  if (f.profile) where.push(`(jsonb_array_length(COALESCE(t.metadata->'websites', '[]'::jsonb)) > 0 OR jsonb_array_length(COALESCE(t.metadata->'socials', '[]'::jsonb)) > 0)`);
+  if (f.boosted) where.push(`COALESCE((t.metadata->>'promoted')::boolean, false)`);
+  if (f.launchpad.length) {
+    const pools = f.launchpad.filter((x) => x !== "none");
+    const parts = [...(pools.length ? [`lp.pool = ANY(${p(pools)})`] : []), ...(f.launchpad.includes("none") ? ["lp.mint IS NULL"] : [])];
+    where.push(`(${parts.join(" OR ")})`);
+  }
+  if (f.scamCheck || f.risk.length) {
+    if (!opts.advanced) locked = true;
+    else {
+      if (f.risk.length) where.push(`COALESCE(sec.risk_level, 'unknown') = ANY(${p(f.risk)})`);
+      if (f.scamCheck) where.push(`sec.risk_level IN ('low', 'medium') AND COALESCE(lc.passed, true)`);
+    }
+  }
+  if (locked) restrictions.push("Some filters (6h/1h/5m, buys/sells, FDV, buy share, liquidity ratio, dev score, scam check, risk) require Pro; they were not applied.");
 
   const pageSize = f.pageSize ?? 25;
   const page = f.page ?? 1;
@@ -141,6 +209,23 @@ export async function listTokens(f: TokenFilters, allowedChains: ChainId[], opts
     params,
   );
   return { rows, total: c.n, page, pageSize, restrictions };
+}
+
+/** What the Screener covers: every tracked pair with market data, per chain (spam excluded), the same set it filters. Cached for a minute. */
+export async function screenerCoverage(chains: ChainId[]): Promise<{ total: number; byChain: { chain: ChainId; n: number }[] }> {
+  const g = globalThis as unknown as { __nxCoverage?: { at: number; key: string; v: { total: number; byChain: { chain: ChainId; n: number }[] } } };
+  const key = chains.join(",");
+  if (g.__nxCoverage && g.__nxCoverage.key === key && Date.now() - g.__nxCoverage.at < 60_000) return g.__nxCoverage.v;
+  const rows = await query<{ chain: ChainId; n: number }>(
+    `SELECT t.chain, count(*)::int AS n FROM token_assets t
+      WHERE t.is_demo = $1 AND NOT t.is_spam AND t.chain = ANY($2)
+        AND EXISTS (SELECT 1 FROM market_snapshots m WHERE m.token_id = t.id)
+      GROUP BY t.chain ORDER BY n DESC`,
+    [env.demoMode, chains],
+  );
+  const v = { total: rows.reduce((s, r) => s + r.n, 0), byChain: rows };
+  g.__nxCoverage = { at: Date.now(), key, v };
+  return v;
 }
 
 export async function getToken(id: string): Promise<TokenRow | null> {
@@ -177,14 +262,6 @@ export async function getLatestSecurity(tokenId: string): Promise<SecurityRow | 
     `SELECT id, provider, checked_at, status, risk_level, checks, unavailable_checks, limitations, holder_count, top10_holder_pct, is_demo
        FROM token_security_checks WHERE token_id = $1 ORDER BY checked_at DESC LIMIT 1`,
     [tokenId],
-  );
-}
-
-export async function getTokenSignals(tokenId: string, limit = 20) {
-  return query<{ id: string; signal_type: string; strength: string; ai_score: number; confidence_score: number; created_at: Date; status: string; price_at_signal: number | null; return_24h: number | null }>(
-    `SELECT s.id, s.signal_type, s.strength, s.ai_score, s.confidence_score, s.created_at, s.status, s.price_at_signal, h.return_24h
-       FROM signals s LEFT JOIN signal_history h ON h.signal_id = s.id WHERE s.token_id = $1 ORDER BY s.created_at DESC LIMIT $2`,
-    [tokenId, limit],
   );
 }
 
@@ -229,7 +306,7 @@ export async function searchTokens(q: string, allowedChains: ChainId[], limit = 
 }
 
 export async function lastIngestion() {
-  return queryOne<{ value: { finishedAt?: string; startedAt: string; stored: number; candidates: number; signalsCreated: number; securityChecked: number; spam: number; errors: string[]; regime?: Record<string, number | null> } }>(
+  return queryOne<{ value: { finishedAt?: string; startedAt: string; stored: number; candidates: number; securityChecked: number; spam: number; errors: string[]; regime?: Record<string, number | null> } }>(
     "SELECT value FROM app_settings WHERE key = 'ingestion_status'",
   );
 }

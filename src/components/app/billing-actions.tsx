@@ -15,7 +15,7 @@ export interface PlanOption {
 
 const money = (c: number) => `$${(c / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
-export function BillingActions({ plans, currentPlan, hasStripeSub, cancelAtPeriodEnd, configured }: { plans: PlanOption[]; currentPlan: string; hasStripeSub: boolean; cancelAtPeriodEnd: boolean; configured: boolean }) {
+export function BillingActions({ plans, currentPlan, hasStripeSub, cancelAtPeriodEnd, configured, cryptoAvailable = false }: { plans: PlanOption[]; currentPlan: string; hasStripeSub: boolean; cancelAtPeriodEnd: boolean; configured: boolean; cryptoAvailable?: boolean }) {
   const router = useRouter();
   const sp = useSearchParams();
   const [interval, setInterval] = useState<"month" | "year">(sp.get("interval") === "year" ? "year" : "month");
@@ -47,6 +47,9 @@ export function BillingActions({ plans, currentPlan, hasStripeSub, cancelAtPerio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!configured && cryptoAvailable) {
+    return <p className="text-sm text-fg-muted">Card payments are not set up on this deployment. Pay with USDC or SOL below.</p>;
+  }
   if (!configured) {
     return <Notice tone="warn" title="Billing is not configured">This deployment has no Stripe keys, so paid plans cannot be purchased. Administrators can grant plans manually (audited) from the admin panel.</Notice>;
   }

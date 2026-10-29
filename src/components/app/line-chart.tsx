@@ -52,18 +52,18 @@ export function LineChart({ points, height = 200, formatKind = "usd", label }: {
       >
         {geo.ticks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={geo.sy(t)} y2={geo.sy(t)} stroke="#161d2f" />
-            <text x={pad.l - 6} y={geo.sy(t) + 3} textAnchor="end" fontSize="10" fill="#5d667c" fontFamily="var(--font-plex-mono)">
+            <line x1={pad.l} x2={W - pad.r} y1={geo.sy(t)} y2={geo.sy(t)} className="stroke-line" />
+            <text x={pad.l - 6} y={geo.sy(t) + 3} textAnchor="end" fontSize="10" className="fill-fg-faint">
               {format(t)}
             </text>
           </g>
         ))}
-        {geo.min < 0 && geo.max > 0 && <line x1={pad.l} x2={W - pad.r} y1={geo.sy(0)} y2={geo.sy(0)} stroke="#2a3550" />}
-        <path d={d} fill="none" stroke="#4d8dff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {geo.min < 0 && geo.max > 0 && <line x1={pad.l} x2={W - pad.r} y1={geo.sy(0)} y2={geo.sy(0)} className="stroke-line-strong" />}
+        <path d={d} fill="none" strokeWidth="2" strokeLinejoin="miter" className="stroke-up" />
         {hover !== null && hp && (
           <g>
-            <line x1={geo.sx(hover)} x2={geo.sx(hover)} y1={pad.t} y2={H - pad.b} stroke="#2a3550" />
-            <circle cx={geo.sx(hover)} cy={geo.sy(hp.y)} r="4.5" fill="#4d8dff" stroke="#0a0e18" strokeWidth="2" />
+            <line x1={geo.sx(hover)} x2={geo.sx(hover)} y1={pad.t} y2={H - pad.b} className="stroke-line-strong" />
+            <rect x={geo.sx(hover) - 4} y={geo.sy(hp.y) - 4} width="8" height="8" strokeWidth="2" className="fill-up stroke-ink-950" />
           </g>
         )}
       </svg>

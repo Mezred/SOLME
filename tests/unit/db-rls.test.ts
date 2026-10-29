@@ -27,10 +27,22 @@ describe("migrations", () => {
   });
 
   it("enforces unique token identity per chain + address", async () => {
-    await db.query("INSERT INTO token_assets (chain, address, symbol, name) VALUES ('base', '0xabc', 'A', 'A')");
+    await db.query("INSERT INTO token_assets (chain, address, symbol, name) VALUES ('solana', 'MintA', 'A', 'A')");
     await expect(
-      db.query("INSERT INTO token_assets (chain, address, symbol, name) VALUES ('base', '0xabc', 'B', 'B')"),
+      db.query("INSERT INTO token_assets (chain, address, symbol, name) VALUES ('solana', 'MintA', 'B', 'B')"),
     ).rejects.toThrow();
+  });
+
+  it("accepts Solana rows only", async () => {
+    for (const table of ["token_assets", "launchpad_tokens", "wallet_profiles"]) {
+      const sql =
+        table === "token_assets"
+          ? "INSERT INTO token_assets (chain, address, symbol, name) VALUES ('base', '0xabc', 'A', 'A')"
+          : table === "launchpad_tokens"
+            ? "INSERT INTO launchpad_tokens (mint, pool, creator, created_at, source, chain) VALUES ('0xabc', 'fourmeme', '0xdev', now(), 'stream', 'bsc')"
+            : "INSERT INTO wallet_profiles (chain, address) VALUES ('ethereum', '0xabc')";
+      await expect(db.query(sql), table).rejects.toThrow(/solana_only/);
+    }
   });
 
   it("rejects wallet classifications without a documented source", async () => {

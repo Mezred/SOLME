@@ -5,13 +5,12 @@
 - **No 7-day price change**: DexScreener provides 5m/1h/6h/24h only; 7d is shown as unavailable rather than computed from sparse data.
 - **Holder counts** come from GoPlus security reports and are refreshed on the security TTL, not every cycle.
 - **Transaction counts are not sizes**: buy/sell imbalance counts transactions; many small buys can coexist with a few large sells. This is disclosed in the UI and methodology.
-- **GoPlus answers one token per request** (both EVM and Solana, verified Oct 2026), so security checks are bounded to 15 per chain per cycle; new tokens may briefly show "Unverified".
+- **GoPlus answers one token per request** (verified Oct 2026), so security checks are bounded to 15 per chain per cycle; new tokens may briefly show "Unverified".
 - **GoPlus Solana** does not provide honeypot simulation or LP-lock status; those checks are shown as unavailable.
 - **GeckoTerminal keyless tier** throttles at roughly 10 req/min: candles (volatility factor and scenario levels) are fetched for at most 3 eligible tokens per cycle and cached 5 min. A paid CoinGecko API key would lift this (adapter change: base URL + header).
-- **Wallet intelligence** requires Helius (Solana) and/or Alchemy (Ethereum, Base). BNB Smart Chain wallet transfers are not supported by these providers. Wallet adapters were implemented against documented request formats but **could not be exercised without API keys** during development — validate with real keys in staging. Wallet P&L/performance is not shown because reliable cost basis needs full historical pricing.
 - **Smart Money** depends on administrators adding documented public wallets; none are pre-loaded (we do not ship unverifiable labels).
 - **Signals refresh per ingestion cycle** (~2 min by default), not per block. The UI shows data age everywhere.
-- **Measured outcomes** use NEXALPHA's own snapshots and only cover tokens that stayed in the ingestion set; they ignore fees and slippage.
+- **Measured outcomes** use SOLME's own snapshots and only cover tokens that stayed in the ingestion set; they ignore fees and slippage.
 - **OAuth sign-in** is not implemented (email + password with verification/reset is). Adding Google/GitHub OAuth would plug into `createSession()`.
 - **Email verification** is required for email alerts and checkout, not for basic use.
 - **Stripe** integration is implemented and unit-tested with signed payloads and simulated events, but **was not run against a live Stripe account** here. Run the staging checklist in DEPLOYMENT.md. Crypto payments are not implemented.
@@ -29,7 +28,6 @@
 | DexScreener / GoPlus | $0 | $0–? | Keyless tiers today; confirm commercial terms and rate limits at scale. |
 | GeckoTerminal / CoinGecko API | $0 | ~$129+ | Paid tier recommended for more candle coverage. |
 | Helius (Solana wallets) | $0–49 | $49–499 | Depends on tracked wallets × sync frequency. |
-| Alchemy (EVM wallets) | $0 | $0–199 | Free tier covers light usage. |
 | Anthropic (AI) | $20–200 | $500–3,000 | Driven by plan quotas (5/50/200 replies/day). At list pricing for `claude-opus-5-5` ($4/$20 per MTok) a typical grounded reply with tool results is ~$0.03–0.10; reports at high effort more. The admin panel tracks actual cost. Lower via `AI_EFFORT`, quotas, or a cheaper `AI_MODEL`. |
 | Resend (email) | $0–20 | $20–90 | Alerts can be high-volume; cooldowns and per-channel opt-in limit this. |
 | Stripe | 2.9% + 30¢ per charge (US cards) | same | Plus Stripe Tax/Billing fees if enabled. |

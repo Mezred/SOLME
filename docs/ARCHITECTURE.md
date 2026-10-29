@@ -8,7 +8,7 @@ flowchart LR
     DS[DexScreener<br/>pairs, prices, txns]
     GT[GeckoTerminal<br/>OHLCV, trending, new pools]
     GP[GoPlus<br/>token security]
-    HE[Helius / Alchemy<br/>wallet activity]
+    HE[Helius<br/>RPC, wallets, live feed]
   end
   subgraph Worker["Background worker (in-process, npm run worker, or /api/cron/tick)"]
     Q[(jobs table<br/>SKIP LOCKED queue)]
@@ -105,7 +105,7 @@ erDiagram
 
 Operational tables: `api_provider_status`, `app_settings` (scoring weights, ingestion settings, last cycle status), `jobs`, `rate_limits`, `email_outbox`, `support_tickets`, `app_logs`, `schema_migrations`.
 
-Identity rules: tokens are unique on `(chain, address)` with EVM addresses lower-cased and Solana base58 kept case-sensitive (`normalizeAddress`). Wallet classifications other than `unknown`/`user_labeled` require `classification_source` (DB `CHECK`).
+Identity rules: tokens are unique on `(chain, address)` with Solana base58 addresses kept case-sensitive (`normalizeAddress`). Wallet classifications other than `unknown`/`user_labeled` require `classification_source` (DB `CHECK`).
 
 Migrations live in `db/migrations/*.sql` and are embedded into the bundle (`scripts/embed-migrations.mjs`) so serverless deployments can migrate without filesystem access.
 
