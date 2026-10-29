@@ -1,8 +1,8 @@
-# NEXALPHA
+# SOLME
 
-On-chain signal intelligence for DEX traders on **Solana, Ethereum, BNB Smart Chain and Base**: a live signal feed, explainable deterministic scoring, token security checks, wallet intelligence, alerts, portfolio tracking, AI research grounded in stored evidence, subscriptions, and an admin panel.
+Research terminal for **Solana** memecoin traders: proven-dev launches, scam checks (on-chain mint, Token-2022 and LP checks), a DEX screener with saved templates, smart-wallet tracking, and Telegram alerts, plus subscriptions and an admin panel.
 
-> Crypto assets are volatile. NEXALPHA is a research tool — not financial advice and not a guarantee of any outcome.
+> Crypto assets are volatile. SOLME is a research tool — not financial advice and not a guarantee of any outcome.
 
 ## Quick start (local, no accounts needed)
 
@@ -63,13 +63,14 @@ Seed accounts (password `nexalpha-demo-2026`, override with `SEED_PASSWORD`): `a
 | Production database | `DATABASE_URL` | Embedded PGlite (dev only; production refuses to start) |
 | AI chat & reports | `ANTHROPIC_API_KEY` (`AI_MODEL`, `AI_EFFORT`) | AI pages show "not configured"; deterministic reports still work |
 | Subscriptions | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` + Price IDs in Admin → Pricing | Paid plans not purchasable; admins can grant plans (audited) |
+| Crypto subscriptions | `SOLANA_PAY_RECIPIENT` (your wallet address) + `HELIUS_API_KEY` | Pay with USDC / SOL hidden |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM` | Emails logged, not sent |
 | Telegram alerts | `TELEGRAM_BOT_TOKEN` | Telegram channel unavailable |
 | Solana wallet activity | `HELIUS_API_KEY` | Wallets can be tracked; no transactions synced |
-| Ethereum/Base wallet activity | `ALCHEMY_API_KEY` | Same as above |
 | Higher GoPlus limits | `GOPLUS_APP_KEY`, `GOPLUS_APP_SECRET` | Keyless tier (~25 checks/min) |
 | Cron-triggered jobs | `CRON_SECRET` | `/api/cron/tick` rejects all calls |
 
 ## Tech stack
 
 Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind CSS 4 · PostgreSQL (node-postgres / PGlite) with SQL migrations and row-level security · Zod · TradingView Lightweight Charts · Anthropic SDK · Stripe REST · Vitest · Playwright.
+"# SOLME" 
