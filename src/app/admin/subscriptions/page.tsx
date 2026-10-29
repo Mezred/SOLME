@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Badge, Card, CardHeader, EmptyState, Notice, PageHeader } from "@/components/ui";
 import { requirePageAdmin } from "@/lib/auth/guard";
-import { stripeConfigured } from "@/lib/billing/stripe";
+import { cryptoConfigured } from "@/lib/billing/crypto";
 import { query } from "@/lib/db";
 import { formatCents, formatDateTime } from "@/lib/format";
 
@@ -21,18 +21,18 @@ export default async function AdminSubscriptions() {
     query<{ cents: number | null }>(
       `SELECT sum(CASE WHEN s.billing_interval = 'year' THEN p.price_annual_cents / 12.0 ELSE p.price_monthly_cents END)::int AS cents
          FROM subscriptions s JOIN subscription_plans p ON p.id = s.plan_id
-        WHERE s.source IN ('stripe', 'crypto') AND s.status IN ('active', 'trialing') AND s.current_period_end > now()`,
+        WHERE s.source = 'crypto' AND s.status IN ('active', 'trialing') AND s.current_period_end > now()`,
     ),
   ]);
   return (
     <>
       <PageHeader title="Subscriptions & payments" description={`Estimated MRR at list prices: ${formatCents(mrr[0]?.cents ?? 0)} (excludes discounts, taxes and admin grants).`} />
-      {!stripeConfigured() && <div className="mb-4"><Notice tone="warn">Stripe is not configured (STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET).</Notice></div>}
+      {!cryptoConfigured() && <div className="mb-4"><Notice tone="warn">Crypto payments are not configured (SOLANA_PAY_RECIPIENT and HELIUS_API_KEY), so paid plans cannot be bought.</Notice></div>}
       <Card>
         <CardHeader title="Subscriptions" />
         {subs.length === 0 ? <EmptyState title="No subscriptions" /> : (
           <div className="overflow-x-auto"><table className="table-terminal">
-            <thead><tr><th>User</th><th>Plan</th><th>Source</th><th>Status</th><th>Interval</th><th>Period end</th><th>Stripe ID</th><th>Updated</th></tr></thead>
+            <thead><tr><th>User</th><th>Plan</th><th>Source</th><th>Status</th><th>Interval</th><th>Period end</th><th>Provider ID</th><th>Updated</th></tr></thead>
             <tbody>{subs.map((s) => (
               <tr key={s.id}><td>{s.email}</td><td><Badge tone="ai">{s.plan_id}</Badge></td><td>{s.source}</td><td><Badge tone={s.status === "active" ? "up" : s.status === "past_due" ? "warn" : "neutral"}>{s.status}</Badge>{s.cancel_at_period_end && <Badge tone="warn">cancels</Badge>}</td><td>{s.billing_interval ?? "—"}</td><td className="text-xs">{formatDateTime(s.current_period_end)}</td><td className="num text-xs text-fg-faint">{s.provider_subscription_id ?? "—"}</td><td className="text-xs">{formatDateTime(s.updated_at)}</td></tr>
             ))}</tbody>
@@ -40,8 +40,8 @@ export default async function AdminSubscriptions() {
         )}
       </Card>
       <Card className="mt-4">
-        <CardHeader title="Payment events (verified webhooks)" subtitle="Failed events are retried by Stripe; errors show why processing stopped." />
-        {events.length === 0 ? <EmptyState title="No webhook events received" /> : (
+        <CardHeader title="Payment events" subtitle="Crypto payments confirmed on-chain, plus any card events kept from before billing became crypto-only." />
+        {events.length === 0 ? <EmptyState title="No payments yet" /> : (
           <div className="overflow-x-auto"><table className="table-terminal">
             <thead><tr><th>Received</th><th>Event</th><th>User</th><th className="text-right">Amount</th><th>Status</th><th>Error</th></tr></thead>
             <tbody>{events.map((e) => (

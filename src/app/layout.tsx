@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
   title: { default: "SOLME — Find memecoins early, skip the scams", template: "%s · SOLME" },
   description:
-    "Solana memecoin research: proven-dev launches, scam checks, a DEX screener, smart-wallet tracking and Telegram alerts.",
+    "Solana memecoin intelligence: Early Coins, Coin Check, Proven Devs, Smart Wallets and Telegram alerts.",
   openGraph: { siteName: "SOLME", type: "website" },
 };
 

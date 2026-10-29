@@ -4,7 +4,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, cx, Notice } from "@/components/ui";
 import { apiFetch } from "@/lib/client";
-import type { PlanOption } from "./billing-actions";
+
+export interface PlanOption {
+  id: string;
+  name: string;
+  monthly: number;
+  annual: number;
+}
 
 export interface CryptoQuote {
   id: string;
@@ -27,8 +33,16 @@ const money = (c: number) => `$${(c / 100).toLocaleString("en-US", { maximumFrac
  * Pay for a plan with USDC or SOL on Solana (Solana Pay). Shows the quote's QR code and exact amount, then polls until
  * the payment is found on-chain. `extending`: the user already has a crypto plan, so paying adds a period to it.
  */
-export function CryptoCheckout({ plans, currentPlan, extending, resume }: { plans: PlanOption[]; currentPlan: string; extending: boolean; resume: CryptoQuote | null }) {
-  const [period, setPeriod] = useState<"month" | "year">("month");
+export function CryptoCheckout({ plans, currentPlan, extending, resume, suggested = null, initialPeriod = "month" }: {
+  plans: PlanOption[];
+  currentPlan: string;
+  extending: boolean;
+  resume: CryptoQuote | null;
+  /** The plan picked on the pricing page, highlighted until the user chooses. */
+  suggested?: string | null;
+  initialPeriod?: "month" | "year";
+}) {
+  const [period, setPeriod] = useState<"month" | "year">(initialPeriod);
   const [currency, setCurrency] = useState<"USDC" | "SOL">("USDC");
   const [quote, setQuote] = useState<CryptoQuote | null>(resume);
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,7 +70,7 @@ export function CryptoCheckout({ plans, currentPlan, extending, resume }: { plan
           const cents = period === "year" ? p.annual : p.monthly;
           const renew = extending && p.id === currentPlan;
           return (
-            <div key={p.id} className={cx("rounded-lg border p-4", p.id === currentPlan ? "border-up/40 bg-up/5" : "border-line")}>
+            <div key={p.id} className={cx("rounded-lg border p-4", p.id === currentPlan || p.id === suggested ? "border-up/40 bg-up/5" : "border-line")}>
               <div className="flex items-baseline justify-between">
                 <span className="font-semibold">{p.name}</span>
                 <span className="num text-sm">{money(cents)}<span className="text-fg-faint"> {currency === "SOL" ? "in SOL" : "USDC"}</span></span>

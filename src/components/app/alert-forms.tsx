@@ -41,7 +41,8 @@ export function NewAlertForm({
   const [walletId, setWalletId] = useState("");
   const [walletDirs, setWalletDirs] = useState<string[]>(["buy", "sell", "transfer_out"]);
   const [walletCheck, setWalletCheck] = useState(false);
-  const [p, setP] = useState<Record<string, string>>({ price: "", window: "h1", pct: "10", direction: "either", multiple: "3", min_level: "high", liqPct: "25", devScore: "60", progress: "80", curveDevScore: "40", walletScore: "60", buySol: "0.5", walletMinSol: "0" });
+  const [earlyContractOk, setEarlyContractOk] = useState(true);
+  const [p, setP] = useState<Record<string, string>>({ price: "", window: "h1", pct: "10", direction: "either", multiple: "3", min_level: "high", liqPct: "25", devScore: "60", progress: "80", curveDevScore: "40", walletScore: "60", buySol: "0.5", walletMinSol: "0", earlyClass: "building", earlyLiq: "10000", earlySmart: "0", earlyPerHour: "6", watchLiq: "30" });
   const [channels, setChannels] = useState<string[]>(defaultChannels);
   const [cooldown, setCooldown] = useState("60");
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +83,16 @@ export function NewAlertForm({
       case "screener_match": // switched on from the Screener, not this form
       case "smart_group_buy": // switched on as a preset on the Alerts page
         return {};
+      case "early_coin":
+        return {
+          min_class: p.earlyClass,
+          contract_ok: earlyContractOk,
+          min_liquidity: Number(p.earlyLiq) || 0,
+          min_smart_wallets: Number(p.earlySmart) || 0,
+          max_per_hour: Number(p.earlyPerHour) || undefined,
+        };
+      case "watchlist_risk":
+        return { liquidity_drop_pct: Number(p.watchLiq) };
     }
   }
 
@@ -172,6 +183,23 @@ export function NewAlertForm({
             <div><label htmlFor="al-pct" className="label">Move ≥ %</label><input id="al-pct" className="input num" value={p.pct} onChange={set("pct")} inputMode="decimal" /></div>
             <div><label htmlFor="al-dir" className="label">Direction</label><select id="al-dir" className="input" value={p.direction} onChange={set("direction")}><option value="either">Either</option><option value="up">Up</option><option value="down">Down</option></select></div>
           </>
+        )}
+        {type === "early_coin" && (
+          <>
+            <div><label htmlFor="al-ecls" className="label">When a coin is</label><select id="al-ecls" className="input" value={p.earlyClass} onChange={set("earlyClass")}><option value="building">Building Momentum</option><option value="early">Early Activity or better</option></select></div>
+            <div><label htmlFor="al-eliq" className="label">Min liquidity ($)</label><input id="al-eliq" className="input num" value={p.earlyLiq} onChange={set("earlyLiq")} inputMode="numeric" /></div>
+            <div><label htmlFor="al-esm" className="label">Min smart wallets bought</label><input id="al-esm" className="input num" value={p.earlySmart} onChange={set("earlySmart")} inputMode="numeric" /></div>
+            <div><label htmlFor="al-eph" className="label">At most alerts per hour</label><input id="al-eph" className="input num" value={p.earlyPerHour} onChange={set("earlyPerHour")} inputMode="numeric" /></div>
+            <label className="flex items-center gap-2 text-sm md:col-span-4"><input type="checkbox" checked={earlyContractOk} onChange={(e) => setEarlyContractOk(e.target.checked)} /> Only coins whose contract was checked with no critical issue</label>
+            <p className="text-xs text-fg-faint md:col-span-4">Each coin alerts once per class. Coins already in Early Coins when you create the rule are skipped. Building Momentum alerts need Pro.</p>
+          </>
+        )}
+        {type === "watchlist_risk" && (
+          <div className="md:col-span-4">
+            <label htmlFor="al-wliq" className="label">Liquidity drop ≥ % within ~1h (10–95)</label>
+            <input id="al-wliq" className="input num max-w-[160px]" value={p.watchLiq} onChange={set("watchLiq")} inputMode="numeric" />
+            <p className="mt-1 text-xs text-fg-faint">For every coin on your watchlist. Also fires when SOLME&apos;s background re-run of the full Coin Check (about every 30 minutes) finds the risk rising to High or Critical.</p>
+          </div>
         )}
         {type === "volume_spike" && <div><label htmlFor="al-mult" className="label">1h volume ≥ × 24h avg</label><input id="al-mult" className="input num" value={p.multiple} onChange={set("multiple")} inputMode="decimal" /></div>}
         {type === "liquidity_drop" && <div><label htmlFor="al-liq" className="label">Liquidity drop ≥ % (1h)</label><input id="al-liq" className="input num" value={p.liqPct} onChange={set("liqPct")} inputMode="decimal" /></div>}

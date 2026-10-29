@@ -13,7 +13,7 @@
 - **Measured outcomes** use SOLME's own snapshots and only cover tokens that stayed in the ingestion set; they ignore fees and slippage.
 - **OAuth sign-in** is not implemented (email + password with verification/reset is). Adding Google/GitHub OAuth would plug into `createSession()`.
 - **Email verification** is required for email alerts and checkout, not for basic use.
-- **Stripe** integration is implemented and unit-tested with signed payloads and simulated events, but **was not run against a live Stripe account** here. Run the staging checklist in DEPLOYMENT.md. Crypto payments are not implemented.
+- **Billing is crypto-only** (USDC / SOL via Solana Pay, prepaid). There is no card option, no automatic renewal and no refunds through a processor; a payment is final once confirmed on-chain. Payment verification is unit-tested; make one small real payment on staging before going live (see DEPLOYMENT.md).
 - **AI** chat was implemented against the Anthropic SDK (v1.3) but **not exercised without an API key** here; the deterministic report path is fully tested.
 - **Legal pages** are product-specific templates and need review by counsel for your jurisdictions.
 - Daily AI quota checks are not transactional; concurrent requests can exceed the quota by a request or two (bounded by the 6/min rate limit).
@@ -30,5 +30,5 @@
 | Helius (Solana wallets) | $0–49 | $49–499 | Depends on tracked wallets × sync frequency. |
 | Anthropic (AI) | $20–200 | $500–3,000 | Driven by plan quotas (5/50/200 replies/day). At list pricing for `claude-opus-5-5` ($4/$20 per MTok) a typical grounded reply with tool results is ~$0.03–0.10; reports at high effort more. The admin panel tracks actual cost. Lower via `AI_EFFORT`, quotas, or a cheaper `AI_MODEL`. |
 | Resend (email) | $0–20 | $20–90 | Alerts can be high-volume; cooldowns and per-channel opt-in limit this. |
-| Stripe | 2.9% + 30¢ per charge (US cards) | same | Plus Stripe Tax/Billing fees if enabled. |
+| Solana Pay | ~$0 | ~$0 | No processor fee; the payer pays the Solana network fee (fractions of a cent). |
 | Telegram | $0 | $0 | Bot API is free (rate limits apply). |

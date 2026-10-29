@@ -8,8 +8,8 @@ export const FAQ: { q: string; a: string; steps?: string[] }[] = [
     q: "How do I decide quickly whether to buy a coin?",
     a: "Look for reasons to say no first: most coins fail in the first seconds, which is what saves time. Coin Check answers five questions for you (can I sell it, is the liquidity real, who controls it, are insiders set to dump, is the trading genuine) and gives one verdict. Follow the steps in order and stop at the first fail; it takes under a minute. This is a research routine, not financial advice: only trade what you can afford to lose entirely.",
     steps: [
-      "Pick candidates only from a filter: a Telegram alert (proven-dev launch, group buy, smart-wallet buy, followed-wallet trade, screener match) or a Quick scan on the Screener. Never from a random tip.",
-      "Send the contract to the bot or open Check a coin. Avoid means skip, whatever else you see: any of the five questions failed (for example the simulated sell fails or hides a tax, liquidity was pulled, mint or freeze authority is on, dev-linked wallets hold 10%+, or wash trading).",
+      "Pick candidates only from a filter: a Telegram alert (Early Coins, proven-dev launch, group buy, smart-wallet buy, followed-wallet trade) or the Early Coins feed. Never from a random tip.",
+      "Send the contract to the bot or open Coin Check. Avoid means skip, whatever else you see: any of the five questions failed (for example the simulated sell fails or hides a tax, liquidity was pulled, mint or freeze authority is on, dev-linked wallets hold 10%+, or wash trading).",
       "Can I sell it? The sell test must say you'd get your money out with no hidden tax, at an exit cost under about 6% for your size. A failed or taxed sell is a trap: never 'try a small buy to see'.",
       "Who holds it? Read the insiders line: top 10 under 30%, dev under 5%, snipers and bundlers mostly gone, and no cluster of wallets funded by the dev or by one wallet. One warning is acceptable; two is a no.",
       "A real reason to buy. Tradeable needs at least one: smart wallets bought (best: a group buy, by wallets marked 'held up'), a proven dev, or strong buy flow that the trading check calls genuine. Clean checks with no reason to buy is Watch: wait for one, don't invent it.",
@@ -47,7 +47,7 @@ export const FAQ: { q: string; a: string; steps?: string[] }[] = [
   },
   {
     q: "Can I cancel anytime?",
-    a: "Yes. Card plans renew monthly or annually and can be cancelled from Billing; access continues until the end of the paid period. Crypto plans (USDC or SOL on Solana) are prepaid and never renew by themselves, so there is nothing to cancel: you get a reminder 3 days before they end.",
+    a: "Yes, there is nothing to cancel. Plans are paid in USDC or SOL on Solana for a month or a year and never renew by themselves. You get a reminder 3 days before yours ends; if you don't pay again, you go back to Free.",
   },
   {
     q: "Is the data real-time?",

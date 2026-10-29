@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         <li><strong>Account:</strong> email address, password hash (never your password itself), role, verification status, display name and timezone if you set them.</li>
         <li><strong>Security:</strong> session records with IP address and user-agent, and an audit log of sign-ins and sensitive changes, used to protect your account.</li>
         <li><strong>Your content:</strong> watchlists, saved screener templates, alert rules, mutes and quiet hours, notifications, and tracked public wallet addresses.</li>
-        <li><strong>Billing:</strong> subscription status and payment event records from Stripe. Card details are handled by Stripe and never stored by us.</li>
+        <li><strong>Billing:</strong> subscription status, and for each payment the public transaction signature and the paying wallet address read from the Solana blockchain. We never ask for or hold private keys or card details.</li>
         <li><strong>Optional:</strong> a Telegram chat ID if you enable Telegram alerts; support messages you send us.</li>
       </ul>
       <h2>Data we do not collect</h2>
@@ -20,7 +20,7 @@ export default function PrivacyPage() {
       <h2>How we use data</h2>
       <p>To provide the service (authentication, alerts, coin checks, billing), to secure accounts and prevent abuse (rate limiting, audit logs), to provide support, and to send transactional emails. We use a strictly necessary session cookie; preferences such as sidebar state are stored in your browser.</p>
       <h2>Processors</h2>
-      <p>We share data only with providers needed to operate: hosting and database providers, Stripe (payments), an email provider (transactional email), Telegram (if enabled), and blockchain data providers (Helius, DexScreener, GeckoTerminal, GoPlus), which receive token and public wallet addresses only, never your email or password.</p>
+      <p>We share data only with providers needed to operate: hosting and database providers, an email provider (transactional email), Telegram (if enabled), and blockchain data providers (Helius, DexScreener, GeckoTerminal, GoPlus), which receive token and public wallet addresses only, never your email or password.</p>
       <h2>Retention</h2>
       <p>Account data is kept while your account exists. Market snapshots are kept for a limited window; logs are pruned after 30 days. Payment records are kept as required by law.</p>
       <h2>Your rights</h2>

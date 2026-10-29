@@ -1,9 +1,10 @@
 import { isChainId } from "@/lib/chains";
-import { queryOne } from "@/lib/db";
+import { query, queryOne } from "@/lib/db";
 import { getHolderReport, type HolderReport } from "@/lib/tokens/holders";
 import { investigate, type Investigation } from "@/lib/tokens/investigate";
 import { errorMessage, logger } from "@/lib/log";
 import { WATCH_MIN_SCORE } from "@/lib/wallets/smart-money";
+import type { EvidenceRefs } from "./links";
 import type { DecisionInput } from "./verdict";
 
 /** What the decision needs beyond market data: holders, the creator's record and sells, smart-wallet buys. Fails soft. */
@@ -16,13 +17,17 @@ export interface DecisionEvidence {
   devSoldPct: number | null;
   /** Sell simulation, connected holders, pool depth, trading patterns. */
   investigation: Investigation | null;
+  /** Launchpad creator (for the developer profile link). */
+  creator: string | null;
+  /** Recorded sales by the creator, newest first (explorer links). */
+  devSells: { signature: string; pct: number | null }[];
 }
 
 const log = logger("evidence");
 
 /** `userId`: who asked, for the holder-check budget (see HOLDER_BUDGET). */
 export async function loadDecisionEvidence(t: { chain: string; address: string; is_demo: boolean }, userId?: string): Promise<DecisionEvidence> {
-  const [holders, smartBuys, dev, sells] = await Promise.all([
+  const [holders, smartBuys, dev, sells, sales] = await Promise.all([
     !t.is_demo && isChainId(t.chain) ? getHolderReport(t.chain, t.address, { budgetUserId: userId }).then((r) => ({ r, e: null as string | null })).catch((e: unknown) => ({ r: null, e: e instanceof Error ? e.message : String(e) })) : Promise.resolve({ r: null, e: null }),
     queryOne<{ wallets: number; sol: number | null; last: Date | null }>(
       `SELECT count(DISTINCT x.wallet_id)::int AS wallets, sum((x.raw->>'sol')::numeric) AS sol, max(x.block_time) AS last
@@ -32,12 +37,13 @@ export async function loadDecisionEvidence(t: { chain: string; address: string; 
       [t.chain, t.address, WATCH_MIN_SCORE],
     ),
     !t.is_demo
-      ? queryOne<{ launches: number; migrated: number; score: number | null }>(
-          `SELECT d.launches, d.migrated, d.score FROM launchpad_tokens l JOIN dev_profiles d ON d.creator = l.creator WHERE l.mint = $1`,
+      ? queryOne<{ launches: number; migrated: number; score: number | null; creator: string }>(
+          `SELECT d.launches, d.migrated, d.score, l.creator FROM launchpad_tokens l JOIN dev_profiles d ON d.creator = l.creator WHERE l.mint = $1`,
           [t.address],
         )
       : Promise.resolve(null),
     queryOne<{ pct: number | null }>("SELECT sum(supply_pct)::float AS pct FROM dev_sells WHERE mint = $1", [t.address]),
+    query<{ signature: string; pct: number | null }>("SELECT signature, supply_pct::float AS pct FROM dev_sells WHERE mint = $1 ORDER BY sold_at DESC LIMIT 5", [t.address]),
   ]);
   const h = holders.r;
   // The investigation reuses the holder list (sell-test wallets, holders to trace), so it runs after it.
@@ -57,9 +63,23 @@ export async function loadDecisionEvidence(t: { chain: string; address: string; 
     holders: h,
     holderError: holders.e,
     smartBuys: { wallets: smartBuys?.wallets ?? 0, sol: Number(smartBuys?.sol ?? 0), last: smartBuys?.last ?? null },
-    dev,
+    dev: dev ? { launches: dev.launches, migrated: dev.migrated, score: dev.score } : null,
     devSoldPct,
     investigation,
+    creator: dev?.creator ?? null,
+    devSells: sales,
+  };
+}
+
+/** What the explorer links need, from loaded evidence. */
+export function evidenceRefs(mint: string, ev: DecisionEvidence): EvidenceRefs {
+  return {
+    mint,
+    pair: ev.investigation?.pair ?? null,
+    dev: ev.holders?.dev?.address ?? ev.creator,
+    creator: ev.creator,
+    devSells: ev.devSells,
+    clusters: ev.investigation?.insiders.clusters.map((c) => ({ funder: c.funder, wallets: c.wallets })) ?? [],
   };
 }
 

@@ -74,7 +74,7 @@ export default async function SettingsPage() {
           <Card>
             <CardHeader title="Privacy & data" />
             <div className="space-y-3 p-4 text-sm text-fg-muted">
-              <p>We store your email, hashed password, preferences, and the watchlists, screener templates and alerts you create. We never store wallet private keys or card details.</p>
+              <p>We store your email, hashed password, preferences, and the watchlists and alerts you create. We never store wallet private keys.</p>
               <DeleteAccount />
             </div>
           </Card>

@@ -6,11 +6,11 @@ import { CopyAddress } from "@/components/app/token-actions";
 import { Badge, buttonClass, Card, cx, CardHeader, ChainBadge, EmptyState, Notice, PageHeader, ScoreRing, UpgradeGate } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 import { getEntitlements } from "@/lib/billing/entitlements";
-import { CHAINS } from "@/lib/chains";
 import { devLeaderboard, devStats, LAUNCHPAD_CHAINS, provenDevDeploys, type LaunchRow } from "@/lib/data/launchpad";
 import { formatAge, formatNumber, formatUsd, shortAddress, timeAgo } from "@/lib/format";
 import { launchpadName, launchpadUrl } from "@/lib/launchpad/names";
 import { PROVEN_DEV_SCORE } from "@/lib/launchpad/pump";
+import { devReputation, REPUTATION } from "@/lib/devs/profile";
 
 export const metadata: Metadata = { title: "Proven Devs" };
 
@@ -42,7 +42,7 @@ function LaunchCards({ rows }: { rows: LaunchRow[] }) {
             <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
               <LaunchCheckBadge t={t} />
               {t.dev_sold_pct !== null && <Badge tone="down">dev sold {Number(t.dev_sold_pct).toFixed(1)}%</Badge>}
-              <span className="text-fg-muted">dev {t.dev_migrated ?? 0}/{t.dev_launches ?? 0} migrated</span>
+              <Link href={`/app/smart-dev/${t.creator}`} className="text-fg-muted hover:text-up">dev {t.dev_migrated ?? 0}/{t.dev_launches ?? 0} migrated →</Link>
               {t.bundle_pct !== null && <span className={pctTone(t.bundle_pct, 10, 20)}>bundle {Number(t.bundle_pct).toFixed(1)}%</span>}
               {t.sniper_pct !== null && <span className={pctTone(t.sniper_pct, 15, 30)}>snipers {t.sniper_wallets ?? 0} · {Number(t.sniper_pct).toFixed(1)}%</span>}
             </div>
@@ -85,8 +85,10 @@ function LaunchTable({ rows }: { rows: LaunchRow[] }) {
                 <td className="num text-fg-muted">{formatAge(t.created_at)}</td>
                 <td className="num text-right">{formatUsd(t.market_cap_usd)}</td>
                 <td className="num text-right">
-                  {t.dev_migrated ?? 0}/{t.dev_launches ?? 0} migrated
-                  {t.dev_score !== null && <span className="text-fg-faint"> · {t.dev_score}</span>}
+                  <Link href={`/app/smart-dev/${t.creator}`} className="hover:text-up" title="Open the developer's profile">
+                    {t.dev_migrated ?? 0}/{t.dev_launches ?? 0} migrated
+                    {t.dev_score !== null && <span className="text-fg-faint"> · {t.dev_score}</span>}
+                  </Link>
                 </td>
                 <td className="num text-right text-fg-muted">{t.initial_buy_sol !== null ? `${formatNumber(Number(t.initial_buy_sol), 2)} SOL` : "—"}</td>
                 <td className={cx("num text-right", pctTone(t.bundle_pct, 10, 20))}>{t.bundle_pct !== null ? `${Number(t.bundle_pct).toFixed(1)}%` : "—"}</td>
@@ -111,7 +113,7 @@ export default async function ProvenDevsPage() {
   const header = (
     <PageHeader
       title="Proven Devs"
-      description="New coins from creators whose earlier pump.fun and LetsBonk launches migrated, each with a background scam check. Open a coin for the full check before you buy."
+      description="Who launches the coins: new coins from creators whose earlier pump.fun and LetsBonk launches migrated, and every developer's record. Open a developer for their full history and linked wallets, or a coin for its Coin Check."
       actions={<AutoRefresh seconds={30} />}
     />
   );
@@ -169,13 +171,13 @@ export default async function ProvenDevsPage() {
                       <td>
                         <span className="flex items-center gap-1.5">
                           <ScoreRing score={d.score} size={32} label="Dev score" />
-                          {d.confidence && <Badge tone={d.confidence === "high" ? "up" : d.confidence === "medium" ? "neutral" : "warn"} title="How much recent history the score rests on">{d.confidence}</Badge>}
+                          <Badge tone={REPUTATION[devReputation(d)].tone} title={`${REPUTATION[devReputation(d)].text} Confidence: ${d.confidence ?? "not set"}.`}>{REPUTATION[devReputation(d)].label}</Badge>
                         </span>
                       </td>
                       <td>
                         <span className="flex items-center gap-1.5">
                           <ChainBadge chain="solana" />
-                          <a href={CHAINS.solana.explorerAddress(d.creator)} target="_blank" rel="noopener noreferrer" className="num hover:text-up" title={d.creator}>{shortAddress(d.creator, 5)}</a>
+                          <Link href={`/app/smart-dev/${d.creator}`} className="num hover:text-up" title="Open the developer's profile">{shortAddress(d.creator, 5)}</Link>
                           {d.linked_wallets > 1 && <Badge tone="info" title="Wallets funded by the same wallet, scored as one dev">+{d.linked_wallets - 1} linked</Badge>}
                         </span>
                       </td>

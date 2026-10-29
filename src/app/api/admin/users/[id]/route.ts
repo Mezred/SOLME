@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { clientIp, revokeAllSessions } from "@/lib/auth/session";
-import { grantPlan } from "@/lib/billing/webhooks";
+import { grantPlan } from "@/lib/billing/grants";
 import { isUuid, query, queryOne } from "@/lib/db";
 import { api, badRequest, notFound, ok, parseBody, requireAdmin } from "@/lib/http";
 

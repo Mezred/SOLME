@@ -15,7 +15,7 @@ export default function TermsPage() {
       <h2>3. Subscriptions & payments</h2>
       <ul>
         <li>Paid plans renew automatically each month or year until cancelled. Prices and features are shown on the Pricing page at purchase.</li>
-        <li>Payments are processed by Stripe. Plan changes are prorated. Cancellation takes effect at the end of the current period; we do not provide refunds for partial periods except where required by law.</li>
+        <li>Plans are paid in USDC or SOL on Solana and are prepaid for the period purchased, with no automatic renewal. Blockchain payments are final once confirmed; we do not provide refunds for unused time except where required by law. An upgrade converts the remaining time of your current plan into time on the new plan.</li>
         <li>If a payment fails, paid features may continue for a short grace period and then revert to the Free plan.</li>
       </ul>
       <h2>4. Acceptable use</h2>

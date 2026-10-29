@@ -74,7 +74,7 @@ test.describe("authentication & authorization", () => {
 
   test("signup → dashboard → logout → login", async ({ page }) => {
     const email = await signup(page);
-    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Early Coins" })).toBeVisible();
     await page.getByRole("button", { name: "Account menu" }).click();
     await page.getByRole("menuitem", { name: "Log out" }).click();
     await page.waitForURL(/\/login/);
@@ -109,24 +109,26 @@ test.describe("entitlements, billing & data", () => {
     expect(w.status()).toBe(402);
   });
 
-  test("checkout cannot unlock a plan without Stripe confirmation", async ({ page }) => {
+  test("a checkout cannot unlock a plan without an on-chain payment", async ({ page }) => {
     await signup(page);
-    const res = await post(page.request, "/api/billing/checkout", { planId: "elite", interval: "month" });
-    expect(res.ok()).toBeFalsy(); // unverified email and/or billing not configured
+    const res = await post(page.request, "/api/billing/crypto", { planId: "elite", interval: "month", currency: "USDC" });
+    expect(res.ok()).toBeFalsy(); // unverified email
     await page.goto("/app/billing");
     await expect(page.getByText("You are on the Free plan.")).toBeVisible();
   });
 
-  test("webhooks without a valid signature are rejected", async ({ request }) => {
-    const res = await request.post("/api/webhooks/stripe", { data: { id: "evt_fake", type: "customer.subscription.created" }, headers: { "stripe-signature": "t=1,v1=deadbeef" } });
-    expect([400, 503]).toContain(res.status());
+  test("card billing endpoints are gone", async ({ request }) => {
+    for (const path of ["/api/webhooks/stripe", "/api/billing/checkout", "/api/billing/manage"]) {
+      const res = await request.post(path, { data: {} });
+      expect(res.status(), path).toBe(404);
+    }
   });
 
   test("watchlists persist between sessions", async ({ page, browser }) => {
     const email = await signup(page);
-    await page.goto("/app/screener");
-    const first = page.locator("table tbody tr a").first();
-    if (!(await first.count())) test.skip(true, "No tokens ingested yet");
+    await page.goto("/app", { waitUntil: "networkidle" });
+    const first = page.locator("main ul li a[href^='/app/token/']").first();
+    if (!(await first.count())) test.skip(true, "No coins in Early Coins yet");
     await first.click();
     await page.getByRole("button", { name: /Add to watchlist/ }).click();
     await expect(page.getByRole("button", { name: /Watching/ })).toBeVisible();

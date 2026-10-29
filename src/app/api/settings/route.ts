@@ -125,8 +125,6 @@ export const POST = api(async (req) => {
       await enforceRateLimit(`delete:${user.id}`, 3, 3600);
       const row = await queryOne<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = $1", [user.id]);
       if (!(await verifyPassword(body.password, row?.password_hash ?? null))) throw badRequest("Password is incorrect.");
-      const active = await queryOne("SELECT 1 FROM subscriptions WHERE user_id = $1 AND source = 'stripe' AND status IN ('active', 'trialing', 'past_due') AND NOT cancel_at_period_end", [user.id]);
-      if (active) throw badRequest("Cancel your paid subscription before deleting your account.");
       await audit(user.id, "account.deleted", { type: "user", id: user.id }, { email: user.email }, ip);
       await destroySession();
       await query("DELETE FROM users WHERE id = $1", [user.id]);

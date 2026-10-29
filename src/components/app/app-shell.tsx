@@ -19,62 +19,95 @@ interface ShellUser {
 export function AppShell({ user, unread, demoMode, children }: { user: ShellUser; unread: number; demoMode: boolean; children: ReactNode }) {
   const path = usePathname();
   const isActive = (href: string) => (href === "/app" ? path === "/app" : path.startsWith(href));
-  // Account pages live in the user menu; the top bar carries the features.
-  const items = NAV.filter((n) => n.group !== "Account");
+  const main = NAV.filter((n) => n.group === "main");
+  const account = NAV.filter((n) => n.group === "account");
+  const badge = (href: string) => (href === "/app/alerts" && unread > 0 ? (unread > 99 ? "99+" : String(unread)) : null);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {demoMode && (
-        <div className="border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-center text-xs text-warn" role="status">
-          DEMO MODE — all market data, scores and security results shown are synthetic and for demonstration only. Not real market data.
-        </div>
-      )}
-      {!user.emailVerified && <VerifyBanner />}
-      <header className="sticky top-0 z-30 border-b border-line bg-ink-950/95 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5 lg:px-6">
-          <Link href="/app" aria-label="Overview" className="shrink-0 sm:hidden"><LogoMark /></Link>
-          <span className="hidden shrink-0 sm:block"><Logo href="/app" /></span>
-          <div className="mx-auto w-full max-w-md"><TokenSearch /></div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden sm:inline-flex"><Badge tone={user.plan === "Free" ? "neutral" : "ai"}>{user.plan}</Badge></span>
-            <Link href="/app/alerts?tab=inbox" className="relative rounded-md p-2 text-fg-muted hover:bg-ink-750 hover:text-fg" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
-              <NavIcon d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Zm4 4h4" />
-              {unread > 0 && <span className="num absolute right-1 top-1 min-w-4 rounded-full bg-down px-1 text-center text-[10px] font-semibold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
-            </Link>
-            <UserMenu user={user} />
-          </div>
-        </div>
-        {/* Feature tabs: centered; when they no longer fit, the row scrolls sideways instead of hiding behind a drawer. */}
-        <nav aria-label="Dashboard" className="mx-auto w-full max-w-[1600px] overflow-x-auto px-1 sm:px-3 lg:px-4 [scrollbar-width:none]">
-          <ul className="mx-auto flex h-11 w-max items-stretch">
-            {items.map((n) => (
-              <li key={n.href} className="flex">
-                <Link
-                  href={n.href}
-                  aria-current={isActive(n.href) ? "page" : undefined}
-                  className={cx(
-                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13px] transition-colors",
-                    isActive(n.href) ? "border-up text-up" : "border-transparent text-fg-muted hover:text-fg",
-                  )}
-                >
-                  <NavIcon d={n.icon} className="h-4 w-4" />
-                  {n.label}
-                </Link>
-              </li>
-            ))}
+    <div className="min-h-screen lg:flex">
+      {/* Desktop: a fixed left sidebar with the four features and Alerts, then the account pages. */}
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-ink-950 lg:flex">
+        <div className="flex h-14 items-center px-5"><Logo href="/app" /></div>
+        <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-2">
+          <ul className="space-y-0.5">
+            {main.map((n) => <SideLink key={n.href} n={n} active={isActive(n.href)} badge={badge(n.href)} />)}
+          </ul>
+          <div className="mb-1 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Account</div>
+          <ul className="space-y-0.5">
+            {account.map((n) => <SideLink key={n.href} n={n} active={isActive(n.href)} badge={null} />)}
             {user.role === "admin" && (
-              <li className="flex">
-                <Link href="/admin" className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-[13px] text-warn hover:text-fg">
-                  <NavIcon d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" className="h-4 w-4" />
+              <li>
+                <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-warn hover:bg-ink-800">
+                  <NavIcon d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" />
                   Admin
                 </Link>
               </li>
             )}
           </ul>
         </nav>
-      </header>
-      <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-5 sm:px-5 lg:px-6">{children}</main>
+        <div className="border-t border-line px-5 py-3 text-xs text-fg-faint">
+          Plan <Badge tone={user.plan === "Free" ? "neutral" : "ai"}>{user.plan}</Badge>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {demoMode && (
+          <div className="border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-center text-xs text-warn" role="status">
+            DEMO MODE: all market data, scores and security results shown are synthetic and for demonstration only.
+          </div>
+        )}
+        {!user.emailVerified && <VerifyBanner />}
+        <header className="sticky top-0 z-30 border-b border-line bg-ink-950/95 backdrop-blur">
+          <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 px-3 sm:px-5 lg:px-8">
+            <Link href="/app" aria-label="Early Coins" className="shrink-0 lg:hidden"><LogoMark /></Link>
+            <div className="w-full max-w-md"><TokenSearch /></div>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <Link href="/app/alerts?tab=inbox" className="relative rounded-md p-2 text-fg-muted hover:bg-ink-750 hover:text-fg" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
+                <NavIcon d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Zm4 4h4" />
+                {unread > 0 && <span className="num absolute right-1 top-1 min-w-4 rounded-full bg-down px-1 text-center text-[10px] font-semibold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
+              </Link>
+              <UserMenu user={user} />
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pb-24 pt-5 sm:px-5 lg:px-8 lg:pb-8">{children}</main>
+      </div>
+
+      {/* Phone: the four features and Alerts as a bottom tab bar. */}
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink-950/95 backdrop-blur lg:hidden">
+        <ul className="grid grid-cols-5">
+          {main.map((n) => (
+            <li key={n.href}>
+              <Link
+                href={n.href}
+                aria-current={isActive(n.href) ? "page" : undefined}
+                className={cx("relative flex flex-col items-center gap-1 py-2 text-[10px]", isActive(n.href) ? "text-up" : "text-fg-muted")}
+              >
+                <NavIcon d={n.icon} className="h-5 w-5" />
+                {n.short}
+                {badge(n.href) && <span className="num absolute right-[22%] top-1 min-w-4 rounded-full bg-down px-1 text-center text-[9px] font-semibold leading-4 text-white">{badge(n.href)}</span>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
+  );
+}
+
+function SideLink({ n, active, badge }: { n: { href: string; label: string; icon: string }; active: boolean; badge: string | null }) {
+  return (
+    <li>
+      <Link
+        href={n.href}
+        aria-current={active ? "page" : undefined}
+        className={cx("flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors", active ? "bg-up/10 text-up" : "text-fg-muted hover:bg-ink-800 hover:text-fg")}
+      >
+        <NavIcon d={n.icon} />
+        <span className="flex-1">{n.label}</span>
+        {badge && <span className="num rounded-full bg-down px-1.5 text-[10px] font-semibold leading-4 text-white">{badge}</span>}
+      </Link>
+    </li>
   );
 }
 
@@ -203,12 +236,14 @@ function UserMenu({ user }: { user: ShellUser }) {
             <div className="truncate text-sm font-medium">{user.displayName ?? user.email}</div>
             <div className="truncate text-xs text-fg-faint">{user.email}</div>
           </div>
-          <Link href="/app/settings" role="menuitem" className="block rounded px-3 py-1.5 text-sm text-fg-muted hover:bg-ink-750 hover:text-fg">
-            Account settings
-          </Link>
-          <Link href="/app/billing" role="menuitem" className="block rounded px-3 py-1.5 text-sm text-fg-muted hover:bg-ink-750 hover:text-fg">
-            Billing
-          </Link>
+          {NAV.filter((n) => n.group === "account").map((n) => (
+            <Link key={n.href} href={n.href} role="menuitem" className="block rounded px-3 py-1.5 text-sm text-fg-muted hover:bg-ink-750 hover:text-fg">
+              {n.label}
+            </Link>
+          ))}
+          {user.role === "admin" && (
+            <Link href="/admin" role="menuitem" className="block rounded px-3 py-1.5 text-sm text-warn hover:bg-ink-750">Admin</Link>
+          )}
           <button
             role="menuitem"
             onMouseDown={async () => {

@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanParams, listTemplates } from "@/lib/data/screener-templates";
-import { SCREENER_PRESETS } from "@/lib/data/screener-presets";
 import { listTokens, screenerCoverage, tokenFilterSchema } from "@/lib/data/tokens";
 import { createTestDb, setDbOverride, withUser, type Database } from "@/lib/db";
 
@@ -137,8 +136,7 @@ describe("Screener: DexScreener filter set", () => {
     expect(await run({ boosted: "1" })).toEqual(["QUIET"]);
   });
 
-  it("accepts every quick scan, and applies free filters while reporting locked ones on Free", async () => {
-    for (const s of SCREENER_PRESETS) expect(Object.keys(s.params).every((k) => k in tokenFilterSchema.shape), s.key).toBe(true);
+  it("applies free filters while reporting locked ones on Free (saved templates behind screener alerts)", async () => {
     const free = await listTokens(tokenFilterSchema.parse({ minLiquidity: "1", minChangeM5: "10" }), ["solana"], { advanced: false });
     expect(free.rows.map((r) => r.symbol).sort()).toEqual(["FRESH", "OLDBIG", "QUIET"]); // 5m change is Pro: not applied
     expect(free.restrictions[0]).toMatch(/require Pro/);

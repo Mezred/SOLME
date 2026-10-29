@@ -57,11 +57,11 @@ Rule types and params: `price_above`/`price_below` `{ price }` (fires on crossin
 
 | Endpoint | Body |
 |---|---|
-| `POST /api/billing/checkout` | `{ planId: pro\|elite, interval: month\|year }` → `{ url }` (Stripe Checkout). Requires verified email. |
-| `POST /api/billing/manage` | `{ action: portal }` → `{ url }`; `{ action: cancel\|resume }`; `{ action: change, planId, interval }` (prorated). State changes arrive via webhook. |
-| `POST /api/webhooks/stripe` | Stripe → SOLME. Verifies `Stripe-Signature` (5-min tolerance), processes each event id once. Handles `checkout.session.completed`, `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`. |
+| `POST /api/billing/crypto` | `{ planId: pro\|elite, interval: month\|year, currency: USDC\|SOL }` → a Solana Pay quote (amount, recipient, `solana:` URL, QR) valid 30 minutes. Requires verified email. |
+| `GET /api/billing/crypto/:id` | The quote's status (`pending`, `confirmed`, `expired`); checks the chain for the payment. |
+| `POST /api/billing/crypto/:id` | `{ signature }`: claim a payment sent without the reference key (e.g. typed by hand). The transaction is verified on-chain before anything unlocks. |
 
-Configure the Stripe webhook endpoint `https://<domain>/api/webhooks/stripe` with those events.
+Billing is crypto-only and prepaid: nothing renews automatically. The worker job `billing.crypto` (every 15s) confirms open quotes and sends renewal reminders.
 
 ## Settings & support
 

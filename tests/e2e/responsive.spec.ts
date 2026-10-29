@@ -15,7 +15,7 @@ test("pricing page stacks plan cards on mobile", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Pro", exact: true })).toBeVisible();
 });
 
-test("signed-in pages fit a phone: Overview, Screener and Proven Devs", async ({ page }) => {
+test("signed-in pages fit a phone, with the features in a bottom tab bar", async ({ page }) => {
   await page.goto("/signup", { waitUntil: "networkidle" });
   await page.fill("#email", `e2e-m-${Date.now()}@example.com`);
   await page.fill("#password", "e2e passphrase long enough");
@@ -25,12 +25,13 @@ test("signed-in pages fit a phone: Overview, Screener and Proven Devs", async ({
   await Promise.race([page.waitForURL(/\/app/), cont.waitFor()]);
   if (await cont.isVisible().catch(() => false)) await cont.click();
   await page.waitForURL(/\/app/);
-  for (const path of ["/app", "/app/screener", "/app/smart-dev"]) {
+  for (const path of ["/app", "/app/check", "/app/smart-dev", "/app/alerts"]) {
     await page.goto(path, { waitUntil: "networkidle" });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, path).toBeLessThanOrEqual(1);
   }
-  // The Screener lists tokens as cards on a phone (the wide table is hidden).
-  await page.goto("/app/screener", { waitUntil: "networkidle" });
-  await expect(page.locator("table.table-terminal").first()).toBeHidden();
+  // No sidebar on a phone: the features are in a tab bar at the bottom.
+  const tabs = page.getByRole("navigation", { name: "Main" }).last();
+  await expect(tabs).toBeVisible();
+  for (const label of ["Early", "Check", "Devs", "Wallets", "Alerts"]) await expect(tabs.getByRole("link", { name: label })).toBeVisible();
 });

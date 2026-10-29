@@ -57,7 +57,7 @@ export function CardHeader({ title, subtitle, action, className = "" }: { title:
 type Tone = "neutral" | "up" | "down" | "warn" | "ai" | "info";
 const TONES: Record<Tone, string> = {
   neutral: "bg-transparent text-fg-muted border-line-strong",
-  up: "bg-up/10 text-up border-up/40",
+  up: "bg-pos/10 text-pos border-pos/40",
   down: "bg-down/10 text-down border-down/40",
   warn: "bg-transparent text-warn border-warn/40",
   ai: "bg-transparent text-up-soft border-up-soft/40",
@@ -91,7 +91,7 @@ export function ChainBadge({ chain }: { chain: string }) {
 }
 
 export function PriceChange({ value, className = "" }: { value: number | null | undefined; className?: string }) {
-  const tone = value === null || value === undefined ? "text-fg-faint" : value > 0 ? "text-up" : value < 0 ? "text-down" : "text-fg-muted";
+  const tone = value === null || value === undefined ? "text-fg-faint" : value > 0 ? "text-pos" : value < 0 ? "text-down" : "text-fg-muted";
   return <span className={cx("num", tone, className)}>{formatPct(value)}</span>;
 }
 
@@ -194,7 +194,7 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
   return (
     <div className="card px-4 py-3">
       <div className="text-[11px] font-medium uppercase tracking-wide text-fg-faint">{label}</div>
-      <div className={cx("num mt-1 text-xl font-semibold", tone === "up" && "text-up", tone === "down" && "text-down", tone === "warn" && "text-warn")}>{value}</div>
+      <div className={cx("num mt-1 text-xl font-semibold", tone === "up" && "text-pos", tone === "down" && "text-down", tone === "warn" && "text-warn")}>{value}</div>
       {sub && <div className="mt-0.5 text-xs text-fg-faint">{sub}</div>}
     </div>
   );

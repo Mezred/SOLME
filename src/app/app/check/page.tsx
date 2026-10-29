@@ -3,7 +3,7 @@ import { CheckForm } from "@/components/app/check-form";
 import { Card, PageHeader } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 
-export const metadata: Metadata = { title: "Check a coin" };
+export const metadata: Metadata = { title: "Coin Check" };
 
 const CHECKS = [
   ["Can I sell it?", "a real sell simulated on-chain: route, price impact, hidden tax, freeze or transfer hooks"],
@@ -19,7 +19,7 @@ export default async function CheckPage({ searchParams }: PageProps<"/app/check"
   const initial = typeof sp.q === "string" ? sp.q.trim().slice(0, 80) : "";
   return (
     <>
-      <PageHeader title="Check a coin" description="Five questions, one answer: Tradeable, Watch or Avoid." />
+      <PageHeader title="Coin Check" description="Paste a contract: its overall risk in plain words, the findings that matter, and the evidence behind each one." />
       <Card className="p-4 sm:p-6">
         <CheckForm initial={initial} />
         <dl className="mt-6 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">

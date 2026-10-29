@@ -44,8 +44,22 @@ export const ALERT_PARAM_SCHEMAS = {
     min_wallet_score: z.number().int().min(1).max(100),
     preset,
   }),
-  // A coin newly matches one of the user's saved Screener templates (switched on from the Screener).
+  // A coin newly matches one of the user's saved Screener templates (rules created before the Screener was retired).
   screener_match: z.object({ template_id: z.string().uuid() }),
+  // A coin enters the Early Coins feed at this class or better (never High Risk).
+  early_coin: z.object({
+    min_class: z.enum(["building", "early"]),
+    // Only coins whose contract was checked with no critical issue.
+    contract_ok: z.boolean().optional(),
+    min_liquidity: z.number().min(0).max(10_000_000).optional(),
+    // At least this many smart wallets bought (0: any).
+    min_smart_wallets: z.number().int().min(0).max(20).optional(),
+    // At most this many alerts an hour from this rule; the rest wait for the next hour if still in the feed.
+    max_per_hour: z.number().int().min(1).max(60).optional(),
+    preset,
+  }),
+  // A coin on the user's watchlist: contract risk rises to high/critical, or liquidity falls this much within ~1h.
+  watchlist_risk: z.object({ liquidity_drop_pct: z.number().int().min(10).max(95), preset }),
 } as const;
 
 export type AlertType = keyof typeof ALERT_PARAM_SCHEMAS;
@@ -67,6 +81,8 @@ export const ALERT_LABELS: Record<AlertType, string> = {
   smart_wallet_buy: "Smart wallet buys",
   screener_match: "Screener template matches",
   smart_group_buy: "Several smart wallets buy the same coin",
+  early_coin: "Early Coins: a coin starts moving",
+  watchlist_risk: "Watchlist: risk rises or liquidity drops",
 };
 
 /** Human-readable condition for a rule's params (alerts list). Unknown shapes fall back to key: value. */
@@ -83,6 +99,8 @@ export function describeAlertParams(type: string, p: Record<string, unknown>): s
     case "dev_deploy": return `dev score ≥ ${n("min_dev_score")} at launch`;
     case "curve_progress": return `curve ≥ ${n("min_progress")}%${n("min_dev_score") > 0 ? ` · dev score ≥ ${n("min_dev_score")}` : " · any dev"}`;
     case "screener_match": return "a new coin matches the saved filters";
+    case "early_coin": return `${p.min_class === "building" ? "Building Momentum" : "Early Activity or better"}${p.contract_ok ? " · contract checked OK" : ""}${n("min_liquidity") > 0 ? ` · liquidity ≥ $${n("min_liquidity").toLocaleString("en-US")}` : ""}${n("min_smart_wallets") > 0 ? ` · ${n("min_smart_wallets")}+ smart wallets` : ""}${n("max_per_hour") > 0 ? ` · at most ${n("max_per_hour")}/hour` : ""}`;
+    case "watchlist_risk": return `Coin Check risk rises to high/critical, or liquidity −${n("liquidity_drop_pct")}% in 1h`;
     case "smart_group_buy": return `${n("min_wallets")}+ wallets scoring ${n("min_wallet_score")}+ within ${n("window_minutes")} min`;
     case "smart_wallet_buy": return `${p.followed_only ? "followed wallets" : `wallet score ≥ ${n("min_wallet_score")}`}${n("min_buy_sol") > 0 ? ` · buy ≥ ${n("min_buy_sol")} SOL` : ""}${p.pass_check ? " · scam check passed" : ""}`;
     default: return Object.entries(p).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join("/") : v}`).join(" · ") || "any";
@@ -90,7 +108,7 @@ export function describeAlertParams(type: string, p: Record<string, unknown>): s
 }
 
 /** Event-style rule types: every new event fires once (deduplicated), so cooldown never hides them. */
-export const EVENT_RULES: AlertType[] = ["wallet_activity", "dev_deploy", "curve_progress", "smart_wallet_buy", "screener_match", "smart_group_buy"];
+export const EVENT_RULES: AlertType[] = ["wallet_activity", "dev_deploy", "curve_progress", "smart_wallet_buy", "screener_match", "smart_group_buy", "early_coin", "watchlist_risk"];
 /** Created from another page (not the custom alert form). */
 export const MANAGED_RULES: AlertType[] = ["screener_match", "smart_group_buy"];
 /** Rule types evaluated by the fast (~15s) launchpad alert job as well as the regular cycle. */

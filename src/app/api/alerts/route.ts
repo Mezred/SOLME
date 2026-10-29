@@ -21,6 +21,7 @@ export const POST = api(async (req) => {
   if (["dev_deploy", "curve_progress"].includes(b.rule_type) && !ent.features.chains.includes("solana")) throw upgradeRequired("Launchpad alerts need Solana on your plan.");
   if (b.rule_type === "smart_wallet_buy" && !ent.features.chains.includes("solana")) throw upgradeRequired("Smart-wallet alerts need Solana on your plan.");
   if (b.rule_type === "smart_wallet_buy" && b.params.followed_only !== true && !ent.features.smart_money) throw upgradeRequired("Smart-wallet alerts are part of the Elite plan.");
+  if (b.rule_type === "early_coin" && b.params.min_class === "building" && ent.planId === "free") throw upgradeRequired("Building Momentum alerts are on Pro and Elite.");
   if (b.rule_type === "smart_group_buy" && (!ent.features.smart_money || !ent.features.chains.includes("solana"))) throw upgradeRequired("Group-buy alerts are part of the Elite plan (Solana).");
   if (b.rule_type === "screener_match") {
     const [t] = await withUser(user.id, (tx) => tx.query("SELECT 1 FROM screener_templates WHERE id = $1", [b.params.template_id]));

@@ -11,6 +11,14 @@ import { timeAgo } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Alerts" };
 
+/** Alerts are grouped by the feature they come from. */
+const FEATURES = [
+  { key: "early", title: "Early Coins", href: "/app" },
+  { key: "check", title: "Coin Check", href: "/app/watchlist" },
+  { key: "devs", title: "Proven Devs", href: "/app/smart-dev" },
+  { key: "wallets", title: "Smart Wallets", href: "/app/smart-money" },
+] as const;
+
 export default async function AlertsPage({ searchParams }: PageProps<"/app/alerts">) {
   const user = await requirePageUser("/app/alerts");
   const sp = await searchParams;
@@ -43,7 +51,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/app/alert
 
   return (
     <>
-      <PageHeader title="Alerts" description="Switch on what you want to hear about. Checked every 15 seconds; each event arrives once." />
+      <PageHeader title="Alerts" description="One place for everything SOLME can tell you about. Each event arrives once, says why it fired, and has mute buttons on Telegram. Quiet hours and the digest are in Settings." />
 
       <Card>
         <CardHeader
@@ -53,8 +61,14 @@ export default async function AlertsPage({ searchParams }: PageProps<"/app/alert
           }
           action={telegramAllowed && !telegramOn ? <Link href="/app/settings" className="text-xs text-up hover:underline">Connect Telegram →</Link> : undefined}
         />
+        {FEATURES.map((f) => (
+        <section key={f.key} aria-labelledby={`alerts-${f.key}`} className="border-t border-line first:border-t-0">
+        <h3 id={`alerts-${f.key}`} className="flex items-center justify-between bg-ink-850 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg-faint">
+          {f.title}
+          <Link href={f.href} className="font-normal normal-case tracking-normal text-fg-faint hover:text-up">Open →</Link>
+        </h3>
         <ul className="divide-y divide-line">
-          {ALERT_PRESETS.map((p) => {
+          {ALERT_PRESETS.filter((p) => p.feature === f.key).map((p) => {
             const rule = presetRule(p.key);
             return (
               <li key={p.key} className="flex items-center justify-between gap-4 px-4 py-3">
@@ -73,6 +87,8 @@ export default async function AlertsPage({ searchParams }: PageProps<"/app/alert
             );
           })}
         </ul>
+        </section>
+        ))}
       </Card>
 
       <Card className="mt-4">

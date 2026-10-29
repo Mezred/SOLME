@@ -11,7 +11,7 @@ const STAGES = [
   { t: "3 · Security checks", b: "Liquid tokens are checked with GoPlus Security plus our own on-chain reads (mint and freeze authority, Token-2022 traps, LP burned or locked), refreshed every few hours. Every report records provider, time, unavailable checks and limitations." },
   { t: "4 · Deterministic scoring", b: "Eleven factors produce quality, momentum, risk and confidence scores. Missing data is excluded, not guessed. Security findings cap or reduce the score." },
   { t: "5 · Proven devs", b: "Every pump.fun and LetsBonk launch is recorded with its creator. Creators whose earlier launches migrated get a dev score; their new launches are shown within seconds and scam-checked in the background." },
-  { t: "6 · Alert", b: "Proven-dev launches, smart-wallet buys and sells, group buys and screener matches go to Telegram within seconds, each with the coin's scam check." },
+  { t: "6 · Alert", b: "Proven-dev launches, smart-wallet buys and sells, group buys and Early Coins matches go to Telegram within seconds, each with the coin's scam check." },
 ];
 
 export default function HowItWorksPage() {

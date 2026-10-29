@@ -60,7 +60,7 @@ export function ProfileForm({ initial, telegramConfigured, emailConfigured, chan
         <div className="max-w-md">
           {initial.telegramChatId ? (
             <>
-              <p className="text-sm"><span className="text-up">● Telegram connected</span> <span className="num text-xs text-fg-faint">chat {initial.telegramChatId}</span></p>
+              <p className="text-sm"><span className="text-pos">● Telegram connected</span> <span className="num text-xs text-fg-faint">chat {initial.telegramChatId}</span></p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button type="button" size="sm" disabled={tg.busy} onClick={() => tg.run({ action: "telegram_test" })}>Send test message</Button>
                 <Button type="button" size="sm" variant="ghost" disabled={tg.busy} onClick={async () => { if (await tg.run({ action: "telegram_unlink" })) router.refresh(); }}>Disconnect</Button>

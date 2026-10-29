@@ -17,6 +17,10 @@ describe("sell simulation helpers", () => {
     expect(sellFailure("x", ["Program log: TransferHook rejected"])).toMatch(/transfer hook/);
     expect(sellFailure({ InstructionError: [3, { Custom: 6001 }] }, ["Program log: Error: SlippageToleranceExceeded"])).toMatch(/hidden tax or trap/);
     expect(sellFailure("InsufficientFundsForFee", [])).toBeNull();
+    // Only Jupiter's router failed, not for slippage: says nothing about the token, so the next holder is tried.
+    expect(sellFailure({ InstructionError: [1, { Custom: 6025 }] }, ["Program JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4 failed: custom program error: 0x1789"])).toBeNull();
+    // The pool or token program failing is attributable to the coin.
+    expect(sellFailure("x", ["Program CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C failed: custom program error: 0x1789", "Program JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4 failed: custom program error: 0x1789"])).toMatch(/reverts/);
   });
 });
 
@@ -76,6 +80,7 @@ describe("trading patterns", () => {
     const r = analyseTrades(txs, MINT, POOL, 1); // $1 per token
     expect(r.trades).toBe(8);
     expect(r.traders).toBe(3);
+    expect(r.buyers).toBe(3);
     expect(Math.round(r.washPct)).toBe(60);
     expect(r.dustPct).toBe(0);
   });
@@ -87,6 +92,7 @@ describe("trading patterns", () => {
     expect(r.trades).toBe(12);
     expect(r.dustPct).toBe(100);
     expect(r.traders).toBe(3); // payers are not traders
+    expect(r.buyers).toBe(0); // dust-only buyers are bots, not buyers
   });
 });
 
@@ -97,7 +103,8 @@ describe("the verdict with the investigation", () => {
     sell: { status: "ok", amountUsd: 500, receivedUsd: 487, impactPct: 2.6, taxPct: 0.1, route: "Pump.fun Amm", reason: null },
     insiders: { status: "ok", checked: 15, devLinked: { wallets: 0, pct: 0 }, clusters: [], newWallets: { wallets: 1, pct: 2 } },
     pool: { status: "ok", pools: 1, quoteSymbol: "SOL", quoteAmount: 210, realQuote: true, dropPct: 5, ageHours: 3 },
-    trading: { status: "ok", trades: 100, traders: 70, spanMinutes: 12, washPct: 4, topWalletPct: 8, dustPct: 10 },
+    trading: { status: "ok", trades: 100, traders: 70, buyers: 55, spanMinutes: 12, washPct: 4, topWalletPct: 8, dustPct: 10 },
+    pair: "POOL",
   };
   const base: DecisionInput = {
     priceUsd: 0.001, change: { m5: 2, h1: 30, h6: 80, h24: 200 }, liquidityUsd: 60_000, marketCapUsd: 500_000, ageHours: 3,

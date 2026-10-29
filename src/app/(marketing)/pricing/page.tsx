@@ -11,12 +11,12 @@ export const dynamic = "force-dynamic";
 export default async function PricingPage() {
   const plans = await getPricingPlans();
   return (
-    <Section as="h1" eyebrow="Pricing" title="Simple plans. Cancel anytime." intro="Start free on Solana. Upgrade for advanced screener filters, Telegram alerts, smart wallets and proven-dev launches. Prices in USD; taxes may apply.">
+    <Section as="h1" eyebrow="Pricing" title="Simple plans. No subscription trap." intro="Start free on Solana. Upgrade for every Early Coin, Telegram alerts, Smart Wallets and Proven Dev launches. Prices in USD; taxes may apply.">
       <PricingCards plans={plans} />
       <div className="mt-12 grid gap-6 text-sm text-fg-muted md:grid-cols-3">
-        <div><h3 className="mb-1 font-semibold text-fg">How billing works</h3><p>Pay by card through Stripe (your card details never touch our servers), or with USDC or SOL on Solana. Plans activate only once the payment is confirmed, on-chain within seconds for crypto.</p></div>
-        <div><h3 className="mb-1 font-semibold text-fg">Changing plans</h3><p>Upgrades and downgrades are prorated. Cancel anytime from Billing and keep access until the end of the paid period. Crypto plans are prepaid: no auto-renewal, a reminder before they end.</p></div>
-        <div><h3 className="mb-1 font-semibold text-fg">Failed payments</h3><p>If a renewal fails, access continues for a short grace period while Stripe retries. Questions? <Link href="/contact" className="text-up">Contact support</Link>.</p></div>
+        <div><h3 className="mb-1 font-semibold text-fg">How billing works</h3><p>Pay with USDC or SOL on Solana, from any wallet, via Solana Pay. Your plan activates as soon as the payment is confirmed on-chain, usually within seconds.</p></div>
+        <div><h3 className="mb-1 font-semibold text-fg">Changing plans</h3><p>Plans are prepaid for a month or a year, with no automatic renewal: you get a reminder 3 days before yours ends. Renewing early adds the time on top; upgrading turns your remaining days into days on the new plan.</p></div>
+        <div><h3 className="mb-1 font-semibold text-fg">Nothing to cancel</h3><p>Since nothing renews automatically, there is no card on file and nothing to cancel: if you don&apos;t pay again, your plan returns to Free when it ends. Questions? <Link href="/contact" className="text-up">Contact support</Link>.</p></div>
       </div>
       <Disclaimer className="mt-10" />
     </Section>

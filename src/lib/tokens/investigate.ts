@@ -8,6 +8,7 @@ import { buildSwap, quoteSell } from "@/lib/providers/jupiter";
 import { rateLimit } from "@/lib/ratelimit";
 import { solPriceUsd } from "@/lib/wallets/smart-money";
 import type { HolderReport } from "./holders";
+import { POOL_AUTHORITIES } from "./pools";
 
 const log = logger("investigate");
 
@@ -24,7 +25,7 @@ const log = logger("investigate");
  * Everything is observed on-chain behaviour, not proof of intent.
  */
 const CACHE_MINUTES = 5;
-const VERSION = 2;
+const VERSION = 6;
 export const SELL_USD = 500;
 const HOLDERS_TO_TRACE = 15;
 const TRADES_TO_READ = 100;
@@ -87,6 +88,11 @@ export interface TradingPattern {
   status: PartStatus;
   trades: number;
   traders: number;
+  /**
+   * Different wallets that bought at least DUST_USD in the sample. Volume bots spread dust trades over many wallets,
+   * so dust-only buyers are left out (with no price, every buyer counts).
+   */
+  buyers: number;
   spanMinutes: number | null;
   /** Share of volume by wallets buying and selling back about what they bought, repeatedly. */
   washPct: number;
@@ -103,6 +109,8 @@ export interface Investigation {
   insiders: Insiders;
   pool: PoolDepth;
   trading: TradingPattern;
+  /** The main pool the trades were read from (for explorer links). */
+  pair: string | null;
 }
 
 /** The investigation for a coin: cached, or computed now within the credit budget. Null when nothing can run. */
@@ -144,32 +152,43 @@ export async function investigate(chain: ChainId, mint: string, holders: HolderR
       ? readTrading(pair, mint, token?.price ?? null).catch((e) => ({ ...NO_TRADING, reason: fail("Trading patterns")(e) }))
       : Promise.resolve({ ...NO_TRADING, reason: "No pool found" }),
   ]);
-  const result: Investigation = { version: VERSION, computedAt: new Date().toISOString(), sell, insiders, pool, trading };
+  const result: Investigation = { version: VERSION, computedAt: new Date().toISOString(), sell, insiders, pool, trading, pair };
   await query(
     `INSERT INTO token_investigations (chain, address, computed_at, data) VALUES ($1, $2, now(), $3)
      ON CONFLICT (chain, address) DO UPDATE SET computed_at = now(), data = EXCLUDED.data`,
     [chain, mint, JSON.stringify(result)],
   );
+  if (trading.status === "ok") await recordBuyerStats(chain, mint, trading);
   return result;
 }
 
 const NO_SELL: SellSim = { status: "unavailable", amountUsd: null, receivedUsd: null, impactPct: null, taxPct: null, route: null, reason: null };
 const NO_INSIDERS: Insiders = { status: "unavailable", checked: 0, devLinked: { wallets: 0, pct: 0 }, clusters: [], newWallets: { wallets: 0, pct: 0 } };
 const NO_POOL: PoolDepth = { status: "unavailable", pools: 0, quoteSymbol: null, quoteAmount: null, realQuote: null, dropPct: null, ageHours: null };
-const NO_TRADING: TradingPattern = { status: "unavailable", trades: 0, traders: 0, spanMinutes: null, washPct: 0, topWalletPct: 0, dustPct: 0 };
+const NO_TRADING: TradingPattern = { status: "unavailable", trades: 0, traders: 0, buyers: 0, spanMinutes: null, washPct: 0, topWalletPct: 0, dustPct: 0 };
 
 // ── A. Sell simulation ──────────────────────────────────────────────────────────────────────────────────────────
 
 const FEE_LAMPORTS = 5_000;
+/** Failures that no slippage setting can fix. */
+const BLOCKED = /frozen|transfer.?hook/i;
 const MIN_PAYER_LAMPORTS = 10_000_000;
 
-/** Why a simulated sell reverted, in plain words, from its logs; null when the payer simply could not pay fees. */
+const JUPITER = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
+
+/**
+ * Why a simulated sell reverted, in plain words, from its logs. Null when the failure says nothing about the token:
+ * the payer could not pay fees, or only Jupiter's router failed for a reason other than slippage (an account or route
+ * issue with that wallet), so the next holder is tried instead.
+ */
 export function sellFailure(err: unknown, logs: string[]): string | null {
   const text = `${JSON.stringify(err)} ${logs.join(" ")}`;
   if (/insufficient lamports|InsufficientFundsForFee|insufficient funds for (fee|rent)/i.test(text)) return null;
+  const failed = [...new Set(logs.map((l) => l.match(/^Program (\w+) failed/)?.[1]).filter(Boolean))];
+  if (failed.length && failed.every((p) => p === JUPITER) && !/0x1771|slippage/i.test(text)) return null;
   if (/frozen/i.test(text)) return "the token account is frozen (freeze authority in use)";
   if (/transfer.?hook/i.test(text)) return "blocked by the token's transfer hook";
-  if (/slippage|0x1771|exceeds desired slippage/i.test(text)) return "proceeds fall short of the quote by over 10% (hidden tax or trap)";
+  if (/slippage|0x1771|exceeds desired slippage/i.test(text)) return "proceeds fall short of the quote by over 30% even with a fresh quote (hidden tax or trap)";
   const line = logs.find((l) => /error|failed/i.test(l));
   return line ? `the sell reverts: ${line.replace(/^Program \w+ /, "").slice(0, 100)}` : "the sell transaction reverts";
 }
@@ -181,20 +200,28 @@ export function impliedTaxPct(quotedLamports: number, receivedLamports: number):
 }
 
 async function simulateSell(mint: string, holders: HolderReport, priceUsd: number, solUsd: number | null): Promise<SellSim> {
-  const candidates = holders.holders.filter((h) => h.kind === "wallet").slice(0, 6);
+  const candidates = holders.holders.filter((h) => h.kind === "wallet" && !POOL_AUTHORITIES.has(h.owner)).slice(0, 6);
   let noRoute = false;
   for (const h of candidates) {
     const [bal, lamports] = await Promise.all([getOwnerTokenBalanceRaw(h.owner, mint), getBalance(h.owner)]);
     if (!bal || bal.amount <= BigInt(0) || lamports < MIN_PAYER_LAMPORTS) continue;
     const target = BigInt(Math.floor((SELL_USD / priceUsd) * 10 ** bal.decimals));
     const amount = target > BigInt(0) && target < bal.amount ? target : bal.amount;
-    const quote = await quoteSell(mint, amount);
+    let quote = await quoteSell(mint, amount);
     if (!quote) {
       noRoute = true;
       break;
     }
-    const tx = await buildSwap(quote, h.owner);
-    const sim = await simulateTransaction(tx, [h.owner]);
+    let sim = await simulateTransaction(await buildSwap(quote, h.owner), [h.owner]);
+    // A fast-moving coin can move past 10% slippage within a block. Before calling a sell blocked, try again with a
+    // fresh quote at 30%: a real trap (frozen account, hook, tax) fails either way, and a tax still shows as a shortfall.
+    if (sim.err && !BLOCKED.test(`${JSON.stringify(sim.err)} ${sim.logs.join(" ")}`) && sellFailure(sim.err, sim.logs) !== null) {
+      const wider = await quoteSell(mint, amount, 3000);
+      if (wider) {
+        quote = wider;
+        sim = await simulateTransaction(await buildSwap(quote, h.owner), [h.owner]);
+      }
+    }
     const amountUsd = (Number(amount) / 10 ** bal.decimals) * priceUsd;
     const route = [...new Set(quote.routePlan.map((r) => r.swapInfo.label).filter(Boolean))].join(" → ") || null;
     const impactPct = Number(quote.priceImpactPct) * 100;
@@ -331,11 +358,7 @@ async function poolDepth(tokenId: string | null, pools: TokenPool[]): Promise<Po
 
 const DUST_USD = 2;
 /** Pool-side vault owners of the common AMMs (besides the pool account itself). */
-const AMM_AUTHORITIES = new Set([
-  "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1", // Raydium AMM v4
-  "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL", // Raydium CPMM
-  "WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh", // LetsBonk / Raydium LaunchLab
-]);
+const AMM_AUTHORITIES = POOL_AUTHORITIES;
 
 /**
  * Pure: patterns in recent swaps of `mint` on `pool`. The trader of a swap is whoever's balance of the coin moved
@@ -396,6 +419,7 @@ export function analyseTrades(txs: RawTx[], mint: string, pool: string, priceUsd
   return {
     trades,
     traders: by.size,
+    buyers: [...by.values()].filter((w) => w.buys > 0 && (!priceUsd || w.buyUsd >= DUST_USD)).length,
     spanMinutes: trades && last > first ? Math.max(1, Math.round((last - first) / 60)) : trades ? 1 : null,
     washPct: pct(wash.reduce((sum, w) => sum + vol(w), 0), volume),
     topWalletPct: pct(Math.max(0, ...[...by.values()].map(vol)), volume),
@@ -403,7 +427,16 @@ export function analyseTrades(txs: RawTx[], mint: string, pool: string, priceUsd
   };
 }
 
-async function readTrading(pair: string, mint: string, priceUsd: number | null): Promise<TradingPattern> {
+export async function readTrading(pair: string, mint: string, priceUsd: number | null): Promise<TradingPattern> {
   const page = await getTransactionsForAddress(pair, { sortOrder: "desc", limit: TRADES_TO_READ });
   return { status: "ok", ...analyseTrades(page.txs, mint, pair, priceUsd) };
+}
+
+/** Unique buyers from a trade sample, kept for Early Coins (which has no other source of distinct wallets). */
+export async function recordBuyerStats(chain: ChainId, mint: string, t: TradingPattern) {
+  await query(
+    `INSERT INTO token_buyer_stats (chain, address, computed_at, buyers, trades, span_minutes) VALUES ($1, $2, now(), $3, $4, $5)
+     ON CONFLICT (chain, address) DO UPDATE SET computed_at = now(), buyers = EXCLUDED.buyers, trades = EXCLUDED.trades, span_minutes = EXCLUDED.span_minutes`,
+    [chain, mint, t.buyers, t.trades, t.spanMinutes],
+  );
 }

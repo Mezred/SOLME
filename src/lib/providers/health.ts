@@ -54,7 +54,6 @@ export async function flushProviderHealth() {
   const keyed: [string, boolean][] = [
     ["helius", integrations.helius],
     ["anthropic", integrations.ai],
-    ["stripe", integrations.stripe],
     ["resend", integrations.email],
     ["telegram", integrations.telegram],
   ];

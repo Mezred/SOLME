@@ -6,6 +6,7 @@ import { base58 } from "@/lib/launchpad/pump";
 import { getAccounts, getLargestTokenAccounts, getOwnerTokenBalance, getTokenSupply, getTransactionsForAddress, type RawTx } from "@/lib/providers/helius-history";
 import { solPriceUsd } from "@/lib/wallets/smart-money";
 import { extractSwap } from "@/lib/wallets/scoring";
+import { POOL_AUTHORITIES } from "./pools";
 
 /**
  * Holder & launch analysis for a Solana token, from Helius RPC (~15 credits, cached CACHE_MINUTES).
@@ -18,7 +19,7 @@ import { extractSwap } from "@/lib/wallets/scoring";
  */
 const CACHE_MINUTES = 5;
 /** Bump when the analysis logic changes so cached reports are recomputed. */
-const REPORT_VERSION = 5;
+const REPORT_VERSION = 6;
 const SNIPE_SECONDS = 10;
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 
@@ -105,6 +106,7 @@ async function computeHolderReport(mint: string): Promise<HolderReport | null> {
   const owners = [...new Set(ownerOf.values())];
   const ownerAccounts = owners.length ? await getAccounts(owners) : new Map<string, { owner: string } | null>();
   const isProgram = (o: string) => {
+    if (POOL_AUTHORITIES.has(o)) return true; // AMM vault authorities look like wallets but hold pool reserves
     const a = ownerAccounts.get(o);
     return Boolean(a && a.owner !== SYSTEM_PROGRAM);
   };

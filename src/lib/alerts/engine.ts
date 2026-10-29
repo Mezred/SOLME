@@ -5,10 +5,13 @@ import { errorMessage, logger } from "@/lib/log";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { isChainId, type ChainId } from "@/lib/chains";
 import { checkToken, passesScamCheck } from "@/lib/decision/check-token";
+import { RISK_TEXT, type RiskLevel } from "@/lib/decision/verdict";
 import { listTokens, tokenFilterSchema } from "@/lib/data/tokens";
 import { formatAge } from "@/lib/format";
 import { launchpadName } from "@/lib/launchpad/names";
+import { earlyFeed } from "@/lib/early/feed";
 import { EVENT_RULES, FAST_RULES } from "./rules";
+import { riskRoseToAlert } from "./watch-checks";
 import { sendTelegram, sendTelegramHtml } from "./telegram";
 import { formatTelegramAlert, formatTelegramDigest, inQuietHours, launchCheckToAlert, pct as fmtPct, usd, type AlertCard, type MuteTarget } from "./telegram-format";
 
@@ -140,6 +143,130 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
     const t = await tokenLabel(rule.token_id);
     return [{ dedupKey: `sec:${c.id}`, link: `/app/token/${t.chain}/${rule.token_id}`, title: `${t.symbol} security: ${c.risk_level.toUpperCase()}`, body: `A new security check rated ${t.symbol} as ${c.risk_level} risk.`, payload: { risk: c.risk_level },
       card: { icon: "🛡️", headline: `Security risk: ${c.risk_level}`, symbol: t.symbol, chain: t.chain, address: t.address, facts: [["Risk level", c.risk_level.toUpperCase()]], note: "Open the coin for the full contract report." } }];
+  }
+
+  // A coin enters the Early Coins feed at the chosen class. The first run only records what is already there (silently),
+  // so a new rule alerts on coins that start moving after it was switched on, not on the whole feed at once.
+  if (rule.rule_type === "early_coin") {
+    const classes = p.min_class === "building" ? ["building"] : ["building", "early"];
+    const minLiq = Number(p.min_liquidity ?? 0);
+    const minSmart = Number(p.min_smart_wallets ?? 0);
+    const matches = (await earlyFeed()).filter((c) => classes.includes(c.cls!) && (p.contract_ok !== true || c.check === "ok") && (c.liquidityUsd ?? 0) >= minLiq && c.smartWallets >= minSmart);
+    const primed = await queryOne("SELECT 1 FROM alert_events WHERE rule_id = $1 LIMIT 1", [rule.id]);
+    const label = { building: "Building Momentum", early: "Early Activity", high_risk: "High Risk" };
+    const triggers: Trigger[] = matches.map((c) => ({
+      // Once per coin and class: a coin moving up from Early Activity to Building Momentum alerts again.
+      dedupKey: `early:${c.cls}:${c.address}`,
+      link: `/app/token/${c.chain}/${c.id}`,
+      title: `${c.symbol}: ${label[c.cls!]}`,
+      body: `Why: ${c.signals.map((x) => x.text).join("; ")}. Market cap ${usd(c.marketCapUsd)}, liquidity ${usd(c.liquidityUsd)}. ${c.check === "ok" ? "Contract checked, no critical issue." : c.check === "risk" ? "Risk found in the checks." : "Contract not checked yet."} Describes current activity, not a prediction.`,
+      payload: { mint: c.address, cls: c.cls, rank: c.rank },
+      silent: !primed,
+      card: {
+        icon: c.cls === "building" ? "📈" : "⚡",
+        headline: `Early Coins: ${label[c.cls!]}`,
+        symbol: c.symbol,
+        chain: c.chain,
+        pool: c.pool,
+        address: c.address,
+        facts: [
+          ...c.signals.slice(0, 3).map((x) => ["Why", x.text] as [string, string]),
+          ["Market cap", usd(c.marketCapUsd)],
+          ["Liquidity", usd(c.liquidityUsd)],
+          ["Contract", c.check === "ok" ? "checked, no critical issue" : c.check === "risk" ? "risk found" : "not checked yet"],
+          ...c.flags.filter((f) => f.level === "caution" && f.key !== "unchecked").slice(0, 1).map((f) => ["Caution", f.text] as [string, string]),
+        ],
+        note: "Describes what is happening now, not a prediction. Send the contract to the bot for a full Coin Check.",
+      },
+    }));
+    if (!primed) return triggers;
+    // Primed: at most a few new coins per run (best first), and at most max_per_hour an hour; coins left out are not
+    // recorded, so they still alert later if they are still in the feed. Coins already alerted are dropped first, or
+    // they would fill the limit and hide the new ones.
+    const seen = new Set(
+      (await query<{ dedup_key: string }>("SELECT dedup_key FROM alert_events WHERE rule_id = $1 AND dedup_key = ANY($2)", [rule.id, triggers.map((t) => t.dedupKey)])).map((r) => r.dedup_key),
+    );
+    const fresh = triggers.filter((t) => !seen.has(t.dedupKey));
+    let room = 5;
+    if (p.max_per_hour) {
+      const sent = await queryOne<{ n: number }>(
+        `SELECT count(*)::int AS n FROM notifications n JOIN alert_events e ON e.id = n.alert_event_id
+          WHERE e.rule_id = $1 AND n.channel = 'in_app' AND n.created_at > now() - interval '1 hour'`,
+        [rule.id],
+      );
+      room = Math.min(room, Math.max(0, Number(p.max_per_hour) - (sent?.n ?? 0)));
+    }
+    return fresh.slice(0, room);
+  }
+
+  // Coins on the user's watchlist: contract risk rising to high/critical, or liquidity falling fast.
+  if (rule.rule_type === "watchlist_risk") {
+    const rows = await query<{ id: string; symbol: string; chain: string; address: string; risk_level: string | null; checked_at: Date | null; liq_now: number | null; liq_before: number | null; captured_at: Date | null }>(
+      `SELECT DISTINCT ON (t.id) t.id, t.symbol, t.chain, t.address, sec.risk_level, sec.checked_at,
+              cur.liquidity_usd::float AS liq_now, past.liquidity_usd::float AS liq_before, cur.captured_at
+         FROM watchlist_items wi JOIN token_assets t ON t.id = wi.token_id
+         LEFT JOIN LATERAL (SELECT risk_level, checked_at FROM token_security_checks c WHERE c.token_id = t.id AND c.status NOT IN ('unavailable', 'error') ORDER BY checked_at DESC LIMIT 1) sec ON true
+         LEFT JOIN LATERAL (SELECT liquidity_usd, captured_at FROM market_snapshots m WHERE m.token_id = t.id ORDER BY captured_at DESC LIMIT 1) cur ON true
+         LEFT JOIN LATERAL (SELECT liquidity_usd FROM market_snapshots m WHERE m.token_id = t.id AND captured_at <= now() - interval '55 minutes' AND captured_at > now() - interval '3 hours' ORDER BY captured_at DESC LIMIT 1) past ON true
+        WHERE wi.user_id = $1`,
+      [rule.user_id],
+    );
+    const out: Trigger[] = [];
+    const window = Math.floor(Date.now() / (6 * 3_600_000));
+    // The full Coin Check, re-run in the background (./watch-checks): the overall risk rising into high or critical.
+    const full = await query<{ id: string; symbol: string; chain: string; address: string; risk: RiskLevel; prev_risk: RiskLevel | null; findings: { label: string; detail: string }[]; changed_at: Date }>(
+      `SELECT DISTINCT t.id, t.symbol, t.chain, t.address, rc.risk, rc.prev_risk, rc.findings, rc.changed_at
+         FROM watchlist_items wi JOIN token_assets t ON t.id = wi.token_id JOIN token_risk_checks rc ON rc.token_id = t.id
+        WHERE wi.user_id = $1 AND rc.changed_at > $2`,
+      [rule.user_id, rule.created_at],
+    );
+    for (const r of full) {
+      if (!riskRoseToAlert(r.prev_risk, r.risk)) continue;
+      const label = RISK_TEXT[r.risk].label;
+      out.push({
+        dedupKey: `wfull:${r.id}:${r.risk}:${new Date(r.changed_at).getTime()}`,
+        link: `/app/token/${r.chain}/${r.id}`,
+        title: `${r.symbol}: Coin Check risk now ${label}`,
+        body: `The full Coin Check on ${r.symbol} (on your watchlist) went from ${RISK_TEXT[r.prev_risk!].label} to ${label} risk. ${r.findings.slice(0, 3).map((f) => `${f.label}: ${f.detail}`).join(". ")}.`,
+        payload: { risk: r.risk, prev: r.prev_risk },
+        card: {
+          icon: r.risk === "critical" ? "⛔" : "🟠",
+          headline: `Watchlist: risk ${RISK_TEXT[r.prev_risk!].label} → ${label}`,
+          symbol: r.symbol, chain: r.chain, address: r.address,
+          facts: r.findings.slice(0, 3).map((f) => [f.label, f.detail] as [string, string]),
+          note: "From a fresh full Coin Check (sell test, holders, insiders, trading). Open it for every finding.",
+        },
+      });
+    }
+    for (const r of rows) {
+      const link = `/app/token/${r.chain}/${r.id}`;
+      const coin = { symbol: r.symbol, chain: r.chain, address: r.address };
+      if ((r.risk_level === "high" || r.risk_level === "critical") && r.checked_at && new Date(r.checked_at) > new Date(rule.created_at)) {
+        out.push({
+          dedupKey: `wrisk:${r.id}:${r.risk_level}`,
+          link,
+          title: `${r.symbol}: contract risk now ${r.risk_level}`,
+          body: `A new contract check on ${r.symbol} (on your watchlist) found ${r.risk_level} risk. Open its Coin Check for the findings.`,
+          payload: { risk: r.risk_level },
+          card: { icon: "⚠️", headline: `Watchlist: contract risk ${r.risk_level}`, ...coin, facts: [["Checked", new Date(r.checked_at).toISOString().slice(11, 16) + " UTC"]], note: "Open the Coin Check to see what changed." },
+        });
+      }
+      const fresh = r.captured_at && Date.now() - new Date(r.captured_at).getTime() < 30 * 60_000;
+      if (fresh && r.liq_now !== null && r.liq_before) {
+        const drop = ((r.liq_before - r.liq_now) / r.liq_before) * 100;
+        if (drop >= Number(p.liquidity_drop_pct)) {
+          out.push({
+            dedupKey: `wliq:${r.id}:${window}`,
+            link,
+            title: `${r.symbol}: liquidity down ${Math.round(drop)}% in ~1h`,
+            body: `Liquidity on ${r.symbol} (on your watchlist) fell from ${usd(r.liq_before)} to ${usd(r.liq_now)} in about an hour. A fast drop can mean the pool is being pulled.`,
+            payload: { drop },
+            card: { icon: "💧", headline: `Watchlist: liquidity down ${Math.round(drop)}%`, ...coin, facts: [["Before", usd(r.liq_before)], ["Now", usd(r.liq_now)]], note: "A fast liquidity drop can mean the pool is being pulled." },
+          });
+        }
+      }
+    }
+    return out;
   }
 
   // Trades by one followed wallet (wallet_id) or by every wallet the user follows: any coin, scam check optional.

@@ -12,7 +12,6 @@ const ROLES: Record<string, string> = {
   geckoterminal: "OHLCV candles, trending & new pools (keyless, ~10 req/min)",
   goplus: "Token security checks (keyless; GOPLUS_APP_KEY raises limits)",
   helius: "Solana RPC: wallets, holders, mints, pools, live feed (HELIUS_API_KEY)",
-  stripe: "Subscriptions & payments (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET)",
   resend: "Transactional email (RESEND_API_KEY)",
   telegram: "Telegram alerts (TELEGRAM_BOT_TOKEN)",
 };

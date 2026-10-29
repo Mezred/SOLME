@@ -3,9 +3,6 @@ import { getPlan, type PlanFeatures } from "./plans";
 import { upgradeRequired } from "@/lib/http";
 import type { ChainId } from "@/lib/chains";
 
-/** Days of continued access while Stripe retries a failed renewal (status past_due). */
-export const PAST_DUE_GRACE_DAYS = 3;
-
 export interface Entitlements {
   planId: string;
   planName: string;
@@ -18,12 +15,11 @@ export interface Entitlements {
     currentPeriodEnd: Date | null;
     cancelAtPeriodEnd: boolean;
   } | null;
-  inGracePeriod: boolean;
 }
 
 /**
- * The single source of truth for paid access. Only rows written by verified webhooks or audited
- * admin grants can raise a user above Free; nothing the browser sends is trusted.
+ * The single source of truth for paid access. Only rows written after an on-chain payment is verified, or by an
+ * audited admin grant, can raise a user above Free; nothing the browser sends is trusted.
  */
 export async function getEntitlements(userId: string): Promise<Entitlements> {
   const sub = await queryOne<{
@@ -38,13 +34,10 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
     `SELECT id, plan_id, status, source, billing_interval, current_period_end, cancel_at_period_end
        FROM subscriptions
       WHERE user_id = $1
-        AND (
-          (status IN ('active', 'trialing') AND (current_period_end IS NULL OR current_period_end > now()))
-          OR (status = 'past_due' AND current_period_end + make_interval(days => $2) > now())
-        )
+        AND status IN ('active', 'trialing') AND (current_period_end IS NULL OR current_period_end > now())
       ORDER BY (SELECT sort_order FROM subscription_plans p WHERE p.id = plan_id) DESC, updated_at DESC
       LIMIT 1`,
-    [userId, PAST_DUE_GRACE_DAYS],
+    [userId],
   );
 
   const plan = (sub && (await getPlan(sub.plan_id))) || (await getPlan("free"));
@@ -63,7 +56,6 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
           cancelAtPeriodEnd: sub.cancel_at_period_end,
         }
       : null,
-    inGracePeriod: sub?.status === "past_due",
   };
 }
 
@@ -71,7 +63,7 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
 export async function anonymousEntitlements(): Promise<Entitlements> {
   const plan = await getPlan("free");
   if (!plan) throw new Error("Free plan is missing from subscription_plans");
-  return { planId: plan.id, planName: plan.name, features: plan.features, subscription: null, inGracePeriod: false };
+  return { planId: plan.id, planName: plan.name, features: plan.features, subscription: null };
 }
 
 export function assertFeature(ent: Entitlements, feature: keyof PlanFeatures, label: string) {

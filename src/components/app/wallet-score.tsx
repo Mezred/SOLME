@@ -8,7 +8,7 @@ import { MIN_DECIDED } from "@/lib/wallets/scoring";
 
 export const formatSol = (v: number | null | undefined, signed = true) =>
   v === null || v === undefined || !Number.isFinite(v) ? "—" : `${signed && v > 0 ? "+" : ""}${formatNumber(v, Math.abs(v) >= 100 ? 0 : 2)} SOL`;
-const solTone = (v: number | null | undefined) => (v === null || v === undefined ? "text-fg-faint" : v >= 0 ? "text-up" : "text-down");
+const solTone = (v: number | null | undefined) => (v === null || v === undefined ? "text-fg-faint" : v >= 0 ? "text-pos" : "text-down");
 
 export function formatDelay(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return "—";

@@ -62,7 +62,7 @@ export default async function WatchlistPage() {
             <Card key={l.id}>
               <CardHeader title={l.name} subtitle={`${rows.length} tokens`} action={lists.length > 1 ? <DeleteWatchlist id={l.id} /> : undefined} />
               {rows.length === 0 ? (
-                <EmptyState title="No tokens yet" body={<>Open any token from the <Link href="/app/screener" className="text-up">Screener</Link> or <Link href="/app/smart-dev" className="text-up">Proven Devs</Link> and choose “Add to watchlist”.</>} />
+                <EmptyState title="No tokens yet" body={<>Open any token from <Link href="/app" className="text-up">Early Coins</Link> or <Link href="/app/smart-dev" className="text-up">Proven Devs</Link> and choose “Add to watchlist”.</>} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="table-terminal">

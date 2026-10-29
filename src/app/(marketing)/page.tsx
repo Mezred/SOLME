@@ -15,9 +15,9 @@ export const dynamic = "force-dynamic";
 const CHAIN_LIST = CHAIN_IDS.map((c) => CHAINS[c].name).join(" · ");
 
 const FEATURES: { href: string; icon: ReactNode; title: string; body: string }[] = [
-  { href: "/app/smart-dev", icon: Icons.rocket, title: "Proven Devs", body: "New coins from devs whose last launches migrated." },
-  { href: "/app/screener", icon: Icons.chart, title: "Screener", body: "Filter every DEX pair. Save your setups." },
-  { href: "/app/check", icon: Icons.shield, title: "Check a coin", body: "Paste a contract. Get Tradeable, Watch or Avoid." },
+  { href: "/app", icon: Icons.chart, title: "Early Coins", body: "Fresh coins where real activity is starting, and why." },
+  { href: "/app/check", icon: Icons.shield, title: "Coin Check", body: "Paste a contract. See its risk in plain words." },
+  { href: "/app/smart-dev", icon: Icons.rocket, title: "Proven Devs", body: "Who launched it, and what their last coins did." },
   { href: "/app/smart-money", icon: Icons.wallet, title: "Smart Wallets", body: "See what proven wallets are buying right now." },
   { href: "/app/alerts", icon: Icons.bell, title: "Alerts", body: "Get pinged on Telegram the moment it happens." },
 ];

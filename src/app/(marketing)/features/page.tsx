@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FeatureCard, Icons, Section } from "@/components/marketing/sections";
 import { ButtonLink } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Features", description: "Proven-dev launches, a DEX screener, scam checks, explainable scores, smart-wallet tracking and Telegram alerts for Solana memecoins." };
+export const metadata: Metadata = { title: "Features", description: "Early Coins, Coin Check, Proven Devs, scam checks, explainable scores, smart-wallet tracking and Telegram alerts for Solana memecoins." };
 
 const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string, string, "up" | "ai" | "down" | "info"][] }[] = [
   {
@@ -11,7 +11,7 @@ const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string
     items: [
       ["radar", "Proven Devs", "New launches from creators whose earlier coins migrated, each with a background scam check."],
       ["rocket", "New launches", "Fresh pairs across chains, deduplicated by chain and contract, with liquidity thresholds and security status."],
-      ["chart", "Token screener", "Every tracked pair with filters for market cap, pair age, transactions, volume and 1h/6h/24h change. Save filters as templates."],
+      ["chart", "Early Coins", "Fresh Solana coins where activity is rising against their own pace, classified as Early Activity, Building Momentum or High Risk, each with the signals that put it there."],
       ["chart", "Token pages", "Candlestick charts, 5m–24h metrics, liquidity pairs, factor breakdowns and full security reports."],
     ].map(([i, t, d]) => [i, t, d, "up"]) as never,
   },
@@ -20,7 +20,7 @@ const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string
     intro: "Deterministic scores from documented rules.",
     items: [
       ["brain", "Explainable scoring", "Separate quality, momentum, risk and confidence scores from eleven documented, weighted factors — with evidence and missing data."],
-      ["shield", "Check a coin", "Paste a contract on the site or send it to the Telegram bot: Tradeable, Watch or Avoid, with every check and its reason."],
+      ["shield", "Coin Check", "Paste a contract on the site or send it to the Telegram bot: overall risk (Low, Moderate, High, Critical), the three findings that matter, and five plain questions: can I sell it, is the liquidity real, who controls it, are insiders set to dump, is the trading genuine."],
     ].map(([i, t, d]) => [i, t, d, "ai"]) as never,
   },
   {

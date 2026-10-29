@@ -5,7 +5,6 @@ import { TrackCandidateButton } from "@/components/app/wallet-forms";
 import { Badge, Card, CardHeader, ChainBadge, EmptyState, Notice, PageHeader, UpgradeGate, VerdictBadge } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 import { getEntitlements } from "@/lib/billing/entitlements";
-import { CHAINS } from "@/lib/chains";
 import { query, queryOne } from "@/lib/db";
 import { listDecision, type ListFacts } from "@/lib/decision/list";
 import { integrations } from "@/lib/env";
@@ -19,6 +18,7 @@ interface BuyRow extends ListFacts {
   id: string;
   chain: string;
   token_address: string;
+  wallet_id: string;
   symbol: string | null;
   token_id: string | null;
   address: string;
@@ -50,13 +50,13 @@ const winRate = (wins: number, decided: number) => (decided > 0 ? `${Math.round(
 export default async function SmartWalletsPage() {
   const user = await requirePageUser("/app/smart-money");
   const ent = await getEntitlements(user.id);
-  const header = <PageHeader title="Smart Wallets" description="Wallets with a proven on-chain record, and what they are buying now. Follow one to get its buys as alerts." />;
+  const header = <PageHeader title="Smart Wallets" description="Wallets with a strong on-chain record, and what they are buying now. Open one to see how it trades, its results and what copying it would have returned. Past results don't repeat on their own." />;
   if (!ent.features.smart_money) return <>{header}<UpgradeGate feature="Smart wallets" plan="Elite" /></>;
   if (!integrations.helius) return <>{header}<Notice tone="warn">Smart wallets need HELIUS_API_KEY (Solana history).</Notice></>;
 
   const [buys, wallets, followed] = await Promise.all([
     query<BuyRow>(
-      `SELECT x.id, x.chain, x.token_address, COALESCE(ta.symbol, x.token_symbol) AS symbol, ta.id AS token_id, w.address,
+      `SELECT x.id, x.chain, x.token_address, COALESCE(ta.symbol, x.token_symbol) AS symbol, ta.id AS token_id, w.address, w.id AS wallet_id,
               s.score, s.wins, s.decided_positions, (x.raw->>'sol')::numeric AS sol, x.block_time,
               snap.price_usd, snap.price_change_h1, snap.price_change_h6, snap.price_change_h24, snap.liquidity_usd, snap.buys_h1, snap.sells_h1,
               sec.risk_level AS security_risk, ${STORED_SCORE_COLUMNS.replaceAll("t.metadata", "ta.metadata")}
@@ -117,7 +117,7 @@ export default async function SmartWalletsPage() {
                     </td>
                     <td>{b.token_id ? <VerdictBadge verdict={b.d.verdict} title={b.d.reasons.join("\n")} /> : <span className="text-xs text-fg-faint">not checked</span>}</td>
                     <td>
-                      <a href={CHAINS.solana.explorerAddress(b.address)} target="_blank" rel="noopener noreferrer" className="num hover:text-up" title={b.address}>{shortAddress(b.address, 4)}</a>
+                      <Link href={`/app/wallets/${b.wallet_id}`} className="num hover:text-up" title="Open the wallet's profile">{shortAddress(b.address, 4)}</Link>
                       <span className="num ml-1.5 text-fg-faint">{b.score}</span>
                     </td>
                     <td className="num text-right">{winRate(b.wins, b.decided_positions)}</td>
@@ -146,19 +146,19 @@ export default async function SmartWalletsPage() {
               <tbody>
                 {wallets.map((w) => (
                   <tr key={w.id}>
-                    <td><a href={CHAINS.solana.explorerAddress(w.address)} target="_blank" rel="noopener noreferrer" className="num hover:text-up" title={w.address}>{shortAddress(w.address, 5)}</a></td>
+                    <td><Link href={`/app/wallets/${w.id}`} className="num hover:text-up" title="Open the wallet's profile">{shortAddress(w.address, 5)}</Link></td>
                     <td className="num text-right">
                       {w.score}
                       {w.oos_verdict === "held_up" && <span className="ml-1.5"><Badge tone="up" title="Its last 10 days of trades, not used for the score, confirm it">held up</Badge></span>}
                       {w.oos_verdict === "faded" && <span className="ml-1.5"><Badge tone="warn" title="Its last 10 days of trades lost money: score cut by 30%">faded</Badge></span>}
                     </td>
                     <td className="num text-right">{winRate(w.wins, w.decided_positions)} <span className="text-fg-faint">({w.wins}/{w.decided_positions})</span></td>
-                    <td className={`num text-right ${w.pnl_sol >= 0 ? "text-up" : "text-down"}`}>{formatSol(w.pnl_sol)}</td>
+                    <td className={`num text-right ${w.pnl_sol >= 0 ? "text-pos" : "text-down"}`}>{formatSol(w.pnl_sol)}</td>
                     <td className="num text-right">{w.early_hits}</td>
                     <td className="num text-right">
                       {w.copy_trades ? (
                         <span title={`${w.copy_wins}/${w.copy_trades} copied trades in profit`}>
-                          <span className={(w.copy_avg ?? 0) >= 0 ? "text-up" : "text-down"}>{formatPct(w.copy_avg, 0)}</span>
+                          <span className={(w.copy_avg ?? 0) >= 0 ? "text-pos" : "text-down"}>{formatPct(w.copy_avg, 0)}</span>
                           <span className="text-fg-faint"> · {w.copy_trades}</span>
                         </span>
                       ) : (

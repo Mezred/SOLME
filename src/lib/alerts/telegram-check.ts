@@ -2,7 +2,7 @@ import { getEntitlements } from "@/lib/billing/entitlements";
 import { CHAINS, normalizeAddress, type ChainId } from "@/lib/chains";
 import { queryOne } from "@/lib/db";
 import { checkToken } from "@/lib/decision/check-token";
-import { sectionSummary, type Decision, type GateStatus } from "@/lib/decision/verdict";
+import { RISK_TEXT, sectionSummary, type Decision, type GateStatus } from "@/lib/decision/verdict";
 import { env } from "@/lib/env";
 import { lookupAddress } from "@/lib/ingestion/lookup";
 import { rateLimit } from "@/lib/ratelimit";
@@ -28,22 +28,23 @@ const VERDICT: Record<Decision["verdict"], { icon: string; label: string }> = {
 const GATE_ICON: Record<GateStatus, string> = { pass: "✅", warn: "⚠️", fail: "❌", unknown: "❔" };
 const TIMING: Record<Decision["timing"], string> = { early: "early", "mid-move": "mid-move, size down", overextended: "vertical, don't chase", dumping: "dumping, wait", unknown: "unknown" };
 
-/** The check as a Telegram card: verdict, one line per question (worst finding first), reasons to buy, timing. */
+const RISK_ICON: Record<Decision["risk"], string> = { low: "🟢", moderate: "🟡", high: "🟠", critical: "⛔" };
+
+/** The check as a Telegram card: overall risk and its key findings, one line per question, reasons to buy, SOLME's read. */
 export function checkCard(d: Decision, coin: { symbol: string; chain: ChainId; address: string; pool: string | null }): AlertCard {
   const v = VERDICT[d.verdict];
   const facts: [string, string][] = d.sections.map((s) => [s.question, `${GATE_ICON[s.status]} ${sectionSummary(s)}`]);
-  facts.push(["Reasons to buy", d.edges.length ? d.edges.join(", ") : "none yet"]);
-  facts.push(["Timing", TIMING[d.timing]]);
-  facts.push(["Safety", `${d.safetyScore}/100`]);
+  facts.push(["Reasons to buy", d.edges.length ? d.edges.join(", ") : "none found"]);
+  facts.push(["SOLME's read", `${v.label} · timing ${TIMING[d.timing]}`]);
   return {
-    icon: v.icon,
-    headline: `Check: ${v.label}`,
+    icon: RISK_ICON[d.risk],
+    headline: `Risk: ${RISK_TEXT[d.risk].label}`,
     symbol: coin.symbol,
     chain: coin.chain,
     pool: coin.pool,
     address: coin.address,
     facts,
-    note: `${d.headline}${d.fullCheck ? "" : " · Holder check unavailable right now."} Research, not advice.`,
+    note: `${RISK_TEXT[d.risk].line}${d.fullCheck ? "" : " Holder check unavailable right now."} Research, not advice.`,
   };
 }
 

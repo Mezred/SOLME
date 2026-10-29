@@ -43,8 +43,6 @@ export const env = {
   aiInputPricePerMTok: num("AI_INPUT_PRICE_PER_MTOK", 4),
   aiOutputPricePerMTok: num("AI_OUTPUT_PRICE_PER_MTOK", 20),
 
-  stripeSecretKey: str("STRIPE_SECRET_KEY"),
-  stripeWebhookSecret: str("STRIPE_WEBHOOK_SECRET"),
   /** Your Solana wallet that receives crypto subscription payments (USDC or SOL, via Solana Pay). */
   solanaPayRecipient: str("SOLANA_PAY_RECIPIENT"),
 
@@ -65,7 +63,6 @@ export const env = {
 export const integrations = {
   database: env.databaseUrl ? "postgres" : "pglite",
   ai: Boolean(env.anthropicApiKey),
-  stripe: Boolean(env.stripeSecretKey && env.stripeWebhookSecret),
   email: Boolean(env.resendApiKey),
   telegram: Boolean(env.telegramBotToken),
   helius: Boolean(env.heliusApiKey),

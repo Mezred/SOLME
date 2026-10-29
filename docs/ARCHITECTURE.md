@@ -31,7 +31,7 @@ flowchart LR
   PAGES & API --> DB
   AI -->|"tools read DB only"| DB
   AI --> CL[Anthropic API]
-  API --> ST[Stripe] -->|signed webhooks| API
+  API -->|verify payments| SOL[Solana via Helius]
 ```
 
 ### Key decisions
@@ -44,7 +44,7 @@ flowchart LR
 | **Postgres job queue** (`FOR UPDATE SKIP LOCKED`, slot-based dedup keys) | Avoids a Redis dependency; safe across multiple worker instances; idempotent scheduling. |
 | **Centralized ingestion** | Providers are polled once per cycle for everyone; per-provider token buckets, TTL caches and in-flight dedup (`src/lib/providers/http.ts`). |
 | **Deterministic scoring, LLM only explains** | Scores are reproducible and auditable; the model reaches data only through server-side tools. |
-| **Stripe via REST + manual signature verification** | No SDK dependency; HMAC-SHA256 with timestamp tolerance and constant-time compare. Entitlements change only from verified webhooks or audited admin grants. |
+| **Crypto-only, prepaid billing (Solana Pay)** | No card processor or stored payment method. Each quote has a unique reference key and amount; the payment is read back on-chain (balance changes to the recipient) before access changes. Entitlements change only from verified payments or audited admin grants. |
 | **SSE + interval refresh** | Signals are produced once per cycle, so near-real-time push (SSE every 15s) is honest; we do not claim tick-level real time. |
 
 ## Request security
@@ -111,7 +111,7 @@ Migrations live in `db/migrations/*.sql` and are embedded into the bundle (`scri
 
 ## Entitlements
 
-Plans (`subscription_plans.features` JSON) define chains, signal delay/history/feed size, advanced filters, watchlist/portfolio/alert/wallet limits, alert channels, AI quota, deep analysis, Smart Money, whale alerts, intelligence level and priority support. `getEntitlements()` resolves the active subscription (active/trialing within the period, or past_due within a 3-day grace) and is called server-side by every gated query and route. Prices, Stripe Price IDs and every limit are editable in Admin → Pricing.
+Plans (`subscription_plans.features` JSON) define chains, signal delay/history/feed size, advanced filters, watchlist/portfolio/alert/wallet limits, alert channels, AI quota, deep analysis, Smart Money, whale alerts, intelligence level and priority support. `getEntitlements()` resolves the active subscription (active within its paid period) and is called server-side by every gated query and route. Prices and every limit are editable in Admin → Pricing.
 
 ## AI (`src/lib/ai`)
 

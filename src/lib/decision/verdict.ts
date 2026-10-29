@@ -24,7 +24,24 @@ export interface GateItem {
   label: string;
   status: GateStatus;
   detail: string;
+  /** How SOLME knows: read on-chain or simulated (confirmed), deduced from patterns (inferred), or not measured. */
+  basis?: Basis;
 }
+
+export type Basis = "confirmed" | "inferred" | "unavailable";
+export type RiskLevel = "low" | "moderate" | "high" | "critical";
+
+/** Findings deduced from patterns rather than read directly (wallet links, fake volume, sells inferred from balances). */
+const INFERRED = new Set<GateItem["key"]>(["insiders", "trading", "devsold"]);
+/** A failure here can trap a buyer outright: no way out, or the pool can be taken. */
+const TRAP = new Set<GateItem["key"]>(["sell", "transfer", "contract", "liquidity", "pool", "exit"]);
+
+export const RISK_TEXT: Record<RiskLevel, { label: string; line: string }> = {
+  low: { label: "Low", line: "No problems found in the checks that ran. That is not a guarantee: most new coins still fail." },
+  moderate: { label: "Moderate", line: "Nothing critical, but there are caution points or checks that could not run." },
+  high: { label: "High", line: "A serious finding: insiders, the dev or the market behaviour point to elevated risk." },
+  critical: { label: "Critical", line: "You may not be able to sell, or the pool can be pulled. Treat it as a trap." },
+};
 
 export interface DecisionInput {
   priceUsd: number | null;
@@ -98,6 +115,10 @@ export interface Decision {
   safetyScore: number;
   /** What would have to change for a better verdict (Watch / Candidate). */
   next: string[];
+  /** Overall risk, separate from momentum or reasons to buy. */
+  risk: RiskLevel;
+  /** The three findings that matter most, worst first. */
+  findings: GateItem[];
 }
 
 /** A typical memecoin entry; the exit check asks what selling it back costs. */
@@ -255,7 +276,8 @@ export function decide(input: DecisionInput): Decision {
   }
   const sold = input.devSoldPct ?? null;
   if (sold !== null && sold >= 1) {
-    const fresh = input.ageHours != null && input.ageHours < 2;
+    // Launchpad devs often sell a small first bag; a large early sale is the classic rug.
+    const fresh = input.ageHours != null && input.ageHours < 2 && sold >= 3;
     gate.push({ key: "devsold", label: "Dev selling", status: fresh ? "fail" : "warn", detail: fresh ? `Dev already sold ${pct(sold)} of supply in the first hours` : `Dev sold ${pct(sold)} of supply` });
   }
 
@@ -404,7 +426,16 @@ export function decide(input: DecisionInput): Decision {
         ...(verdict === "candidate" ? ["The holder check (open the coin's page)"] : []),
       ];
 
-  return { verdict, headline, reasons, edges, gate, timing, exit: { tradeSizeUsd, slippagePct: slip }, plan, fullCheck: Boolean(h), sections, safetyScore, next };
+  for (const g of gate) g.basis = g.status === "unknown" ? "unavailable" : INFERRED.has(g.key) ? "inferred" : "confirmed";
+  const risk: RiskLevel =
+    fails.some((g) => TRAP.has(g.key)) ? "critical"
+    : fails.length || warns.length >= 3 || timing === "dumping" ? "high"
+    : warns.length || contract.status !== "pass" || !h || unknowns.length || (inv !== null && inv.sell.status !== "ok") ? "moderate"
+    : "low";
+  const order = (g: GateItem) => (g.status === "fail" ? (TRAP.has(g.key) ? 0 : 1) : g.status === "warn" ? 2 : g.status === "unknown" ? 3 : 4);
+  const findings = [...gate].sort((a, b) => order(a) - order(b)).filter((g) => g.status !== "unknown" || g.key === "contract" || g.key === "sell").slice(0, 3);
+
+  return { verdict, headline, reasons, edges, gate, timing, exit: { tradeSizeUsd, slippagePct: slip }, plan, fullCheck: Boolean(h), sections, safetyScore, next, risk, findings };
 }
 
 /** Position size so that hitting the stop loses `riskUsd`. */

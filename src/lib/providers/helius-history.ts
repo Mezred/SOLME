@@ -176,6 +176,29 @@ export async function getOwnerTokenBalanceRaw(owner: string, mint: string): Prom
   return decimals === null ? null : { amount, decimals };
 }
 
+const TOKEN_PROGRAMS = ["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"];
+
+/**
+ * Every token an owner holds right now (non-zero balances, both token programs, 2 credits), summed per mint as UI
+ * amounts. Also the SOL balance.
+ */
+export async function getWalletHoldings(owner: string): Promise<{ sol: number; tokens: { mint: string; amount: number }[] }> {
+  type Parsed = { value: { account: { data: { parsed?: { info?: { mint?: string; tokenAmount?: { uiAmount: number | null } } } } } }[] };
+  const [lamports, ...pages] = await Promise.all([
+    getBalance(owner),
+    ...TOKEN_PROGRAMS.map((programId) => rpcCall<Parsed>("getTokenAccountsByOwner", [owner, { programId }, { encoding: "jsonParsed", commitment: "confirmed" }])),
+  ]);
+  const by = new Map<string, number>();
+  for (const page of pages) {
+    for (const a of page.value) {
+      const info = a.account.data.parsed?.info;
+      const amount = info?.tokenAmount?.uiAmount ?? 0;
+      if (info?.mint && amount > 0) by.set(info.mint, (by.get(info.mint) ?? 0) + amount);
+    }
+  }
+  return { sol: lamports / 1e9, tokens: [...by].map(([mint, amount]) => ({ mint, amount })) };
+}
+
 /**
  * Simulates a (unsigned) transaction against current state without sending it (1 credit): signatures are not
  * verified and the blockhash is replaced, so any wallet's transaction can be tried. Returns the error, the logs and

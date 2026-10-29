@@ -27,8 +27,6 @@ export interface Plan {
   price_monthly_cents: number;
   price_annual_cents: number;
   currency: string;
-  stripe_price_monthly: string | null;
-  stripe_price_annual: string | null;
   features: PlanFeatures;
   sort_order: number;
   is_active: boolean;

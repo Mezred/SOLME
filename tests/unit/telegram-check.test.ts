@@ -68,7 +68,7 @@ describe("check a coin from Telegram", () => {
     expect(calls[0].text).toBe("🔎 Checking…");
     const result = calls[1];
     expect(result.message_id).toBe(calls[0].message_id ?? 100);
-    expect(result.text).toContain("⛔ <b>CHECK: AVOID</b>");
+    expect(result.text).toContain("⛔ <b>RISK: CRITICAL</b>");
     expect(result.text).toContain("<b>$RUGGY</b> · Solana · pump.fun");
     expect(result.text).toContain(`<code>${MINT}</code>`);
     expect(result.text).toContain("• Who controls it?: <b>❌ critical risk");
@@ -84,7 +84,7 @@ describe("check a coin from Telegram", () => {
 
   it("serves a repeat from cache and rate-limits new checks per chat", async () => {
     await say(MINT);
-    expect(calls[1].text).toContain("CHECK: AVOID"); // cached: no new check, no rate-limit hit
+    expect(calls[1].text).toContain("RISK: CRITICAL"); // cached: no new check, no rate-limit hit
     calls.length = 0;
     // Use up the budget in this window and the next one (so the test cannot straddle a window boundary).
     const [{ user_id }] = await db.query<{ user_id: string }>("SELECT user_id FROM profiles WHERE telegram_chat_id = '777'");

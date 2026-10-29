@@ -77,6 +77,7 @@ describe("decide (memecoin rules)", () => {
   it("a dev selling a fresh coin is a fail; on an older coin a warning", () => {
     expect(full({ ageHours: 0.5, devSoldPct: 3 }).gate.find((g) => g.key === "devsold")?.status).toBe("fail");
     expect(full({ ageHours: 30, devSoldPct: 3 }).gate.find((g) => g.key === "devsold")?.status).toBe("warn");
+    expect(full({ ageHours: 0.5, devSoldPct: 1.7 }).gate.find((g) => g.key === "devsold")?.status).toBe("warn"); // a small first bag
     expect(full({ devSoldPct: 0.4 }).gate.find((g) => g.key === "devsold")).toBeUndefined();
   });
 

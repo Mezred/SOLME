@@ -12,6 +12,8 @@ import { discoverEarlyBuyers, scoreDueWallets, watchSmartWallets } from "@/lib/w
 import { syncWallets } from "@/lib/wallets/sync";
 import { computeCopyStats } from "@/lib/wallets/copy";
 import { processCryptoPayments } from "@/lib/billing/crypto";
+import { sampleEarlyBuyers } from "@/lib/early/buyers";
+import { recheckWatchedCoins } from "@/lib/alerts/watch-checks";
 import { checkFeeds } from "./feed-health";
 import { ensureDemoData } from "@/lib/demo/seed";
 import { checkFreshLaunches, checkNewLaunches, fillLaunchFacts } from "@/lib/launchpad/checks";
@@ -58,6 +60,14 @@ export const handlers: Record<string, JobHandler> = {
   },
   "wallets.sync": async () => {
     await syncWallets();
+  },
+  // Unique buyers for the top Early Coins, from real pool trades (credit-bounded).
+  "early.buyers": async () => {
+    if (!env.demoMode) await sampleEarlyBuyers();
+  },
+  // The full Coin Check on watched coins, for the watchlist risk alert (credit-bounded).
+  "watchlist.recheck": async () => {
+    if (!env.demoMode) await recheckWatchedCoins();
   },
   "smartmoney.discover": async () => {
     if (!env.demoMode) await discoverEarlyBuyers();
@@ -109,6 +119,8 @@ async function scheduleRecurring() {
     ["launchpad.checks.fast", 15],
     ["telegram.poll", 15],
     ["billing.crypto", 15],
+    ["early.buyers", 300],
+    ["watchlist.recheck", 600],
     ["wallets.sync", 600],
     // Helius credit budget: see src/lib/wallets/smart-money.ts before shortening these.
     ["smartmoney.discover", 1800],

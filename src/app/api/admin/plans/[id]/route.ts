@@ -31,8 +31,6 @@ const schema = z.object({
   description: z.string().trim().max(200),
   price_monthly_cents: z.number().int().min(0).max(10_000_000),
   price_annual_cents: z.number().int().min(0).max(100_000_000),
-  stripe_price_monthly: z.string().trim().regex(/^price_[A-Za-z0-9]+$/).nullable(),
-  stripe_price_annual: z.string().trim().regex(/^price_[A-Za-z0-9]+$/).nullable(),
   is_active: z.boolean(),
   features,
 });
@@ -44,9 +42,9 @@ export const PUT = api<Ctx>(async (req, ctx) => {
   if (!before) throw notFound("Plan not found");
   const b = await parseBody(req, schema);
   await query(
-    `UPDATE subscription_plans SET name = $2, description = $3, price_monthly_cents = $4, price_annual_cents = $5, stripe_price_monthly = $6,
-       stripe_price_annual = $7, is_active = $8, features = $9, updated_at = now() WHERE id = $1`,
-    [id, b.name, b.description, b.price_monthly_cents, b.price_annual_cents, b.stripe_price_monthly, b.stripe_price_annual, id === "free" ? true : b.is_active, JSON.stringify(b.features)],
+    `UPDATE subscription_plans SET name = $2, description = $3, price_monthly_cents = $4, price_annual_cents = $5,
+       is_active = $6, features = $7, updated_at = now() WHERE id = $1`,
+    [id, b.name, b.description, b.price_monthly_cents, b.price_annual_cents, id === "free" ? true : b.is_active, JSON.stringify(b.features)],
   );
   await audit(admin.id, "admin.plan_updated", { type: "plan", id }, { before, after: b }, await clientIp());
   return ok({ ok: true });

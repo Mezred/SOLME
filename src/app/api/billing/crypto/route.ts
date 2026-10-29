@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { getEntitlements } from "@/lib/billing/entitlements";
 import { createCryptoPayment, cryptoConfigured, cryptoPaymentView } from "@/lib/billing/crypto";
 import { api, badRequest, enforceRateLimit, ok, parseBody, requireUser } from "@/lib/http";
 import { errorMessage } from "@/lib/log";
@@ -16,10 +15,6 @@ export const POST = api(async (req) => {
   if (!cryptoConfigured()) throw badRequest("Crypto payments are not set up on this deployment.");
   if (!user.emailVerified) throw badRequest("Verify your email address before subscribing.");
   const { planId, interval, currency } = await parseBody(req, schema);
-  const ent = await getEntitlements(user.id);
-  if (ent.subscription?.source === "stripe" && ["active", "trialing", "past_due"].includes(ent.subscription.status)) {
-    throw badRequest("You have a card subscription. Cancel it from the Billing page before paying with crypto.");
-  }
   try {
     return ok(await cryptoPaymentView(await createCryptoPayment(user.id, planId, interval, currency)), { status: 201 });
   } catch (err) {
