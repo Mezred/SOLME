@@ -79,7 +79,7 @@ export interface DecisionInput {
   plan?: { entryLow: number | null; entryHigh: number | null; stop: number | null; target: number | null } | null;
 }
 
-/** The five questions Coin Check answers, each from its gate items. */
+/** The five questions the risk check answers, each from its gate items. */
 export const QUESTIONS = [
   { key: "sell", question: "Can I sell it?", gates: ["sell", "transfer", "exit"] },
   { key: "liquidity", question: "Is the liquidity real?", gates: ["liquidity", "pool"] },

@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AutoRefresh } from "@/components/app/auto-refresh";
-import { LaunchCheckBadge } from "@/components/app/launchpad";
-import { CopyAddress } from "@/components/app/token-actions";
+import { ProvenLaunchList } from "@/components/app/proven-launches";
 import { Badge, buttonClass, Card, cx, CardHeader, ChainBadge, EmptyState, Notice, PageHeader, ScoreRing, UpgradeGate } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 import { getEntitlements } from "@/lib/billing/entitlements";
-import { devLeaderboard, devStats, LAUNCHPAD_CHAINS, provenDevDeploys, type LaunchRow } from "@/lib/data/launchpad";
-import { formatAge, formatNumber, formatUsd, shortAddress, timeAgo } from "@/lib/format";
-import { launchpadName, launchpadUrl } from "@/lib/launchpad/names";
+import { devLeaderboard, devStats, LAUNCHPAD_CHAINS, provenDevDeploys } from "@/lib/data/launchpad";
+import { formatUsd, shortAddress, timeAgo } from "@/lib/format";
+import { launchReadout } from "@/lib/launchpad/readout";
 import { PROVEN_DEV_SCORE } from "@/lib/launchpad/pump";
 import { devReputation, REPUTATION } from "@/lib/devs/profile";
 
@@ -17,103 +16,21 @@ export const metadata: Metadata = { title: "Proven Devs" };
 const PROVEN_SCORE = PROVEN_DEV_SCORE;
 const FREE_PREVIEW = 5;
 
-/** Muted below `warn`, amber from `warn`, red from `bad` (percent of supply). */
-const pctTone = (v: number | null, warn: number, bad: number) => (v === null ? "text-fg-faint" : v >= bad ? "text-down" : v >= warn ? "text-warn" : "text-fg-muted");
+const WINDOWS = { "1h": 1, "6h": 6, "24h": 24 } as const;
+type Window = keyof typeof WINDOWS;
+const VIEWS = { all: "All", clear: "Looks clear", hide_avoid: "Hide Avoid" } as const;
+type View = keyof typeof VIEWS;
 
-/** Coins still on their bonding curve have no token page yet: open the full check by address instead. */
-const coinHref = (t: LaunchRow) => (t.token_id ? `/app/token/${t.chain}/${t.token_id}` : `/app/check?q=${encodeURIComponent(t.mint)}`);
-
-/** Phone layout of the launch table: one card per coin with the same facts. */
-function LaunchCards({ rows }: { rows: LaunchRow[] }) {
-  return (
-    <ul className="divide-y divide-line md:hidden">
-      {rows.map((t) => {
-        const padUrl = launchpadUrl(t.pool, t.mint);
-        return (
-          <li key={t.mint} className="space-y-2 px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-2">
-                <Link href={coinHref(t)} className="truncate font-semibold hover:text-up">{t.symbol ?? shortAddress(t.mint)}</Link>
-                <ChainBadge chain={t.chain} />
-                <span className="num text-xs text-fg-faint">{formatAge(t.created_at)}</span>
-              </span>
-              <span className="num text-sm">{formatUsd(t.market_cap_usd)}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <LaunchCheckBadge t={t} />
-              {t.dev_sold_pct !== null && <Badge tone="down">dev sold {Number(t.dev_sold_pct).toFixed(1)}%</Badge>}
-              <Link href={`/app/smart-dev/${t.creator}`} className="text-fg-muted hover:text-up">dev {t.dev_migrated ?? 0}/{t.dev_launches ?? 0} migrated →</Link>
-              {t.bundle_pct !== null && <span className={pctTone(t.bundle_pct, 10, 20)}>bundle {Number(t.bundle_pct).toFixed(1)}%</span>}
-              {t.sniper_pct !== null && <span className={pctTone(t.sniper_pct, 15, 30)}>snipers {t.sniper_wallets ?? 0} · {Number(t.sniper_pct).toFixed(1)}%</span>}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-[11px]">
-              <CopyAddress address={t.mint} />
-              {padUrl && <a href={padUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-fg-faint hover:text-fg">{launchpadName(t.pool)} ↗</a>}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function LaunchTable({ rows }: { rows: LaunchRow[] }) {
-  return (
-    <div className="hidden overflow-x-auto md:block">
-      <table className="table-terminal">
-        <thead>
-          <tr>
-            <th>Coin</th><th>Age</th><th className="text-right">Mcap</th><th className="text-right">Dev record</th>
-            <th className="text-right" title="What the creator bought at launch">Dev buy</th>
-            <th className="text-right" title="% of supply bought in the creation block by other wallets">Bundle</th>
-            <th className="text-right" title="Wallets buying in the first 10 seconds, and their % of supply">Snipers</th>
-            <th>Scam check</th><th>Contract</th><th>Where</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t) => {
-            const padUrl = launchpadUrl(t.pool, t.mint);
-            return (
-              <tr key={t.mint}>
-                <td>
-                  <span className="flex items-center gap-2">
-                    <Link href={coinHref(t)} className="font-semibold hover:text-up">{t.symbol ?? shortAddress(t.mint)}</Link>
-                    <ChainBadge chain={t.chain} />
-                    {t.dev_sold_pct !== null && <Badge tone="down" title="The creator sold their own coin (seen live)">dev sold {Number(t.dev_sold_pct).toFixed(1)}%</Badge>}
-                  </span>
-                </td>
-                <td className="num text-fg-muted">{formatAge(t.created_at)}</td>
-                <td className="num text-right">{formatUsd(t.market_cap_usd)}</td>
-                <td className="num text-right">
-                  <Link href={`/app/smart-dev/${t.creator}`} className="hover:text-up" title="Open the developer's profile">
-                    {t.dev_migrated ?? 0}/{t.dev_launches ?? 0} migrated
-                    {t.dev_score !== null && <span className="text-fg-faint"> · {t.dev_score}</span>}
-                  </Link>
-                </td>
-                <td className="num text-right text-fg-muted">{t.initial_buy_sol !== null ? `${formatNumber(Number(t.initial_buy_sol), 2)} SOL` : "—"}</td>
-                <td className={cx("num text-right", pctTone(t.bundle_pct, 10, 20))}>{t.bundle_pct !== null ? `${Number(t.bundle_pct).toFixed(1)}%` : "—"}</td>
-                <td className={cx("num text-right", pctTone(t.sniper_pct, 15, 30))}>{t.sniper_pct !== null ? `${t.sniper_wallets ?? 0} · ${Number(t.sniper_pct).toFixed(1)}%` : "—"}</td>
-                <td><LaunchCheckBadge t={t} /></td>
-                <td className="text-[11px]"><CopyAddress address={t.mint} /></td>
-                <td className="text-fg-muted">
-                  {padUrl ? <a href={padUrl} target="_blank" rel="noopener noreferrer nofollow" className="hover:text-fg">{launchpadName(t.pool)} ↗</a> : launchpadName(t.pool)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export default async function ProvenDevsPage() {
+export default async function ProvenDevsPage({ searchParams }: PageProps<"/app/smart-dev">) {
   const user = await requirePageUser("/app/smart-dev");
+  const sp = await searchParams;
+  const win: Window = typeof sp.window === "string" && sp.window in WINDOWS ? (sp.window as Window) : "24h";
+  const view: View = typeof sp.show === "string" && sp.show in VIEWS ? (sp.show as View) : "all";
   const ent = await getEntitlements(user.id);
   const header = (
     <PageHeader
       title="Proven Devs"
-      description="Who launches the coins: new coins from creators whose earlier pump.fun and LetsBonk launches migrated, and every developer's record. Open a developer for their full history and linked wallets, or a coin for its Coin Check."
+      description="Who launches the coins: new coins from creators whose earlier pump.fun and LetsBonk launches migrated, and every developer's record. Open a developer for their full history and linked wallets, or a coin for its contract security and holders."
       actions={<AutoRefresh seconds={30} />}
     />
   );
@@ -123,23 +40,66 @@ export default async function ProvenDevsPage() {
   const full = ent.features.smart_money;
   const [devs, deploys, stats] = await Promise.all([
     devLeaderboard(full ? 100 : FREE_PREVIEW, chains),
-    full ? provenDevDeploys(PROVEN_SCORE, chains) : Promise.resolve([]),
+    full ? provenDevDeploys(PROVEN_SCORE, chains, 60, WINDOWS[win]) : Promise.resolve([]),
     devStats(chains),
   ]);
+
+  const read = deploys.map((t) => ({ t, status: launchReadout(t).status }));
+  const counts = { clear: 0, caution: 0, avoid: 0, pending: 0, unchecked: 0 };
+  for (const x of read) counts[x.status]++;
+  const shown = read.filter((x) => (view === "clear" ? x.status === "clear" : view === "hide_avoid" ? x.status !== "avoid" : true)).map((x) => x.t);
+  const href = (o: { window?: Window; show?: View }) => {
+    const q = new URLSearchParams();
+    const w = o.window ?? win;
+    const v = o.show ?? view;
+    if (w !== "24h") q.set("window", w);
+    if (v !== "all") q.set("show", v);
+    return `/app/smart-dev${q.size ? `?${q}` : ""}`;
+  };
+  const chip = (active: boolean) => cx("rounded-md border px-2.5 py-1 text-xs", active ? "border-up/60 bg-up/10 text-fg" : "border-line text-fg-muted hover:text-fg");
 
   return (
     <>
       {header}
       <Card>
-        <CardHeader title="Proven dev launches" subtitle={`Last 24h, newest first · dev score ${PROVEN_SCORE}+ with 2+ launches`} />
+        <CardHeader
+          title="Proven dev launches"
+          subtitle={`New coins from devs with a score of ${PROVEN_SCORE}+ and 2+ launches, newest first. Each one says whether it looks clear, and why.`}
+        />
         {!full ? (
           <EmptyState title="Elite feature" body="See new coins the moment a dev with a strong record launches one." />
-        ) : deploys.length === 0 ? (
-          <EmptyState title="No proven dev launched in the last 24h" body="Launches show up within seconds. Turn on the proven-dev alert to get them on Telegram." />
         ) : (
           <>
-            <LaunchCards rows={deploys} />
-            <LaunchTable rows={deploys} />
+            <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+              <nav aria-label="Time window" className="flex gap-1.5">
+                {(Object.keys(WINDOWS) as Window[]).map((w) => (
+                  <Link key={w} href={href({ window: w })} className={chip(w === win)} aria-current={w === win ? "page" : undefined}>Last {w}</Link>
+                ))}
+              </nav>
+              <span className="mx-1 hidden h-4 w-px bg-line sm:block" aria-hidden="true" />
+              <nav aria-label="Filter launches" className="flex gap-1.5">
+                {(Object.keys(VIEWS) as View[]).map((v) => (
+                  <Link key={v} href={href({ show: v })} className={chip(v === view)} aria-current={v === view ? "page" : undefined}>{VIEWS[v]}</Link>
+                ))}
+              </nav>
+              <span className="ml-auto text-xs text-fg-muted">
+                {deploys.length} launch{deploys.length === 1 ? "" : "es"} ·{" "}
+                <span className="text-pos">{counts.clear} clear</span> · <span className="text-warn">{counts.caution} caution</span> ·{" "}
+                <span className="text-down">{counts.avoid} avoid</span>{counts.pending + counts.unchecked ? <> · {counts.pending + counts.unchecked} not checked yet</> : null}
+              </span>
+            </div>
+            {deploys.length === 0 ? (
+              <EmptyState title={`No proven dev launched in the last ${win}`} body="Launches show up within seconds. Turn on the proven-dev alert to get them on Telegram." />
+            ) : shown.length === 0 ? (
+              <EmptyState title="Nothing matches this filter" body="Try All, or a longer time window." />
+            ) : (
+              <ProvenLaunchList rows={shown} />
+            )}
+            <p className="border-t border-line px-4 py-2 text-[11px] text-fg-faint">
+              <span className="text-pos">Looks clear</span>: the scam check passed and nothing below stood out; it is not a promise.{" "}
+              <span className="text-warn">Caution</span>: a dev sale, a bundle or snipers holding 10–30%, or down 50%+ from its peak.{" "}
+              <span className="text-down">Avoid</span>: the scam check failed, the dev sold 5%+, a bundle holds 20%+ or snipers 30%+. A dev&apos;s record does not predict the next coin.
+            </p>
           </>
         )}
       </Card>

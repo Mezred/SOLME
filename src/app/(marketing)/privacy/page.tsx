@@ -18,7 +18,7 @@ export default function PrivacyPage() {
       <h2>Data we do not collect</h2>
       <p>We never ask for or store private keys, seed phrases, exchange API keys, or wallet signatures. We do not sell personal data or use third-party advertising trackers.</p>
       <h2>How we use data</h2>
-      <p>To provide the service (authentication, alerts, coin checks, billing), to secure accounts and prevent abuse (rate limiting, audit logs), to provide support, and to send transactional emails. We use a strictly necessary session cookie; preferences such as sidebar state are stored in your browser.</p>
+      <p>To provide the service (authentication, alerts, billing), to secure accounts and prevent abuse (rate limiting, audit logs), to provide support, and to send transactional emails. We use a strictly necessary session cookie; preferences such as sidebar state are stored in your browser.</p>
       <h2>Processors</h2>
       <p>We share data only with providers needed to operate: hosting and database providers, an email provider (transactional email), Telegram (if enabled), and blockchain data providers (Helius, DexScreener, GeckoTerminal, GoPlus), which receive token and public wallet addresses only, never your email or password.</p>
       <h2>Retention</h2>

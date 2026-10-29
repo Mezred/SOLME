@@ -80,11 +80,11 @@ export async function devLeaderboard(limit: number, chains: ChainId[]) {
 }
 
 /** New launches in the last 24h by devs scoring at least `minScore`. */
-export async function provenDevDeploys(minScore: number, chains: ChainId[], limit = 30) {
+export async function provenDevDeploys(minScore: number, chains: ChainId[], limit = 30, hours = 24) {
   return query<LaunchRow>(
-    `SELECT ${LAUNCH_COLUMNS} WHERE l.chain = ANY($3) AND l.source = 'stream' AND l.created_at > now() - interval '24 hours' AND d.score >= $1 AND d.launches >= 2
+    `SELECT ${LAUNCH_COLUMNS} WHERE l.chain = ANY($3) AND l.source = 'stream' AND l.created_at > now() - make_interval(hours => $4) AND d.score >= $1 AND d.launches >= 2
       ORDER BY l.created_at DESC LIMIT $2`,
-    [minScore, limit, chains],
+    [minScore, limit, chains, hours],
   );
 }
 

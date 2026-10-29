@@ -14,9 +14,9 @@ export const metadata: Metadata = { title: "Alerts" };
 /** Alerts are grouped by the feature they come from. */
 const FEATURES = [
   { key: "early", title: "Early Coins", href: "/app" },
-  { key: "check", title: "Coin Check", href: "/app/watchlist" },
   { key: "devs", title: "Proven Devs", href: "/app/smart-dev" },
   { key: "wallets", title: "Smart Wallets", href: "/app/smart-money" },
+  { key: "watchlist", title: "Watchlist", href: "/app/watchlist" },
 ] as const;
 
 export default async function AlertsPage({ searchParams }: PageProps<"/app/alerts">) {

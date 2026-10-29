@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FeatureCard, Icons, Section } from "@/components/marketing/sections";
 import { ButtonLink } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Features", description: "Early Coins, Coin Check, Proven Devs, scam checks, explainable scores, smart-wallet tracking and Telegram alerts for Solana memecoins." };
+export const metadata: Metadata = { title: "Features", description: "Early Coins, Proven Devs, scam checks, explainable scores, smart-wallet tracking and Telegram alerts for Solana memecoins." };
 
 const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string, string, "up" | "ai" | "down" | "info"][] }[] = [
   {
@@ -20,7 +20,6 @@ const GROUPS: { title: string; intro: string; items: [keyof typeof Icons, string
     intro: "Deterministic scores from documented rules.",
     items: [
       ["brain", "Explainable scoring", "Separate quality, momentum, risk and confidence scores from eleven documented, weighted factors — with evidence and missing data."],
-      ["shield", "Coin Check", "Paste a contract on the site or send it to the Telegram bot: overall risk (Low, Moderate, High, Critical), the three findings that matter, and five plain questions: can I sell it, is the liquidity real, who controls it, are insiders set to dump, is the trading genuine."],
     ].map(([i, t, d]) => [i, t, d, "ai"]) as never,
   },
   {

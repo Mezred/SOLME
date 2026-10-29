@@ -198,7 +198,7 @@ export function NewAlertForm({
           <div className="md:col-span-4">
             <label htmlFor="al-wliq" className="label">Liquidity drop ≥ % within ~1h (10–95)</label>
             <input id="al-wliq" className="input num max-w-[160px]" value={p.watchLiq} onChange={set("watchLiq")} inputMode="numeric" />
-            <p className="mt-1 text-xs text-fg-faint">For every coin on your watchlist. Also fires when SOLME&apos;s background re-run of the full Coin Check (about every 30 minutes) finds the risk rising to High or Critical.</p>
+            <p className="mt-1 text-xs text-fg-faint">For every coin on your watchlist. Also fires when SOLME&apos;s background re-run of the full risk check (about every 30 minutes) finds the risk rising to High or Critical.</p>
           </div>
         )}
         {type === "volume_spike" && <div><label htmlFor="al-mult" className="label">1h volume ≥ × 24h avg</label><input id="al-mult" className="input num" value={p.multiple} onChange={set("multiple")} inputMode="decimal" /></div>}

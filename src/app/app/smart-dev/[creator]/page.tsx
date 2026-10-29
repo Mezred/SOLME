@@ -52,7 +52,7 @@ export default async function DevProfilePage({ params }: PageProps<"/app/smart-d
               {p.launches.map((l) => (
                 <li key={l.mint} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                   <span className={cx("num w-3 font-bold", OUTCOME_CLS[l.outcome])} aria-hidden="true">{OUTCOME_ICON[l.outcome]}</span>
-                  <Link href={l.token_id ? `/app/token/solana/${l.token_id}` : `/app/check?q=${l.mint}`} className="font-semibold hover:text-up">{l.symbol ?? shortAddress(l.mint)}</Link>
+                  <Link href={l.token_id ? `/app/token/solana/${l.token_id}` : `/app/token/solana/${l.mint}`} className="font-semibold hover:text-up">{l.symbol ?? shortAddress(l.mint)}</Link>
                   <span className="text-xs text-fg-faint">{launchpadName(l.pool)} · {formatAge(l.created_at)} ago{l.creator !== creator ? ` · from linked wallet ${shortAddress(l.creator)}` : ""}</span>
                   <span className={cx("ml-auto text-xs", OUTCOME_CLS[l.outcome])}>{OUTCOME[l.outcome]}</span>
                   <span className="w-full pl-6 text-[11px] text-fg-faint">

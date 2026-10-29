@@ -38,7 +38,7 @@ const FACTS = `
 export const CURVE_DEXES = ["pumpfun", "launchlab", "meteoradbc"];
 
 /**
- * The full pre-buy check for one token, as on its page: fetches the token (market data + contract check) when it
+ * The full risk check for one token (alert filters, the watchlist re-check): fetches the token (market data + contract check) when it
  * is not tracked yet, then adds holders & launch, the creator's record and sells, and smart-wallet buys.
  * Null when the token is not trading on a DEX.
  * `explicit`: fetch the coin even below the discovery size filter (fresh launches the user or a job asked about).

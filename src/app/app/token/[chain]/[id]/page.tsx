@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FactorList } from "@/components/app/factor-list";
-import { DecisionCard } from "@/components/app/decision-card";
-import { CURVE_DEXES } from "@/lib/decision/check-token";
 import { HolderPanel } from "@/components/app/holder-panel";
-import { failedCheckLabels, warnCheckLabels } from "@/lib/decision/evidence";
 import { PriceChart } from "@/components/app/price-chart";
 import { SecurityPanel } from "@/components/app/security-panel";
 import { CopyAddress, WatchButton } from "@/components/app/token-actions";
@@ -13,11 +10,28 @@ import { EarlyBuyersCard, type EarlyBuyerRow } from "@/components/app/wallet-sco
 import { Badge, Card, CardHeader, ChainBadge, DemoBadge, Freshness, PriceChange, TokenAvatar, UpgradeGate } from "@/components/ui";
 import { requirePageUser } from "@/lib/auth/guard";
 import { getEntitlements } from "@/lib/billing/entitlements";
-import { CHAINS, isChainId } from "@/lib/chains";
+import { CHAINS, isChainId, type ChainId } from "@/lib/chains";
 import { isUuid, query, queryOne } from "@/lib/db";
 import { liveScore } from "@/lib/data/live-score";
 import { getLatestSecurity, getToken, getTokenPairs } from "@/lib/data/tokens";
 import { formatAge, formatPrice, formatUsd } from "@/lib/format";
+import { lookupAddress } from "@/lib/ingestion/lookup";
+import { rateLimit } from "@/lib/ratelimit";
+
+const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/**
+ * A coin's page by contract address (links to coins SOLME may not track yet, e.g. a fresh launch): the tracked
+ * token's id, after fetching the coin from providers when needed (rate-limited per user). Null when no market exists.
+ */
+async function tokenIdForAddress(userId: string, chain: ChainId, address: string): Promise<string | null> {
+  const find = () => queryOne<{ id: string }>("SELECT id FROM token_assets WHERE chain = $1 AND address = $2", [chain, address]);
+  const known = await find();
+  if (known) return known.id;
+  if (!(await rateLimit(`lookup:${userId}`, 10, 300)).allowed) return null;
+  await lookupAddress(address, [chain], { explicit: true }).catch(() => []);
+  return (await find())?.id ?? null;
+}
 
 export async function generateMetadata({ params }: PageProps<"/app/token/[chain]/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -37,7 +51,12 @@ function Metric({ label, children, hint }: { label: string; children: React.Reac
 export default async function TokenPage({ params }: PageProps<"/app/token/[chain]/[id]">) {
   const { chain, id } = await params;
   const user = await requirePageUser(`/app/token/${chain}/${id}`);
-  if (!isUuid(id) || !isChainId(chain)) notFound();
+  if (!isChainId(chain)) notFound();
+  if (!isUuid(id)) {
+    const tokenId = ADDRESS.test(id) ? await tokenIdForAddress(user.id, chain, id) : null;
+    if (!tokenId) notFound();
+    redirect(`/app/token/${chain}/${tokenId}`);
+  }
   const [t, ent] = await Promise.all([getToken(id), getEntitlements(user.id)]);
   if (!t || t.chain !== chain) notFound();
   if (!ent.features.chains.includes(t.chain)) {
@@ -102,26 +121,6 @@ export default async function TokenPage({ params }: PageProps<"/app/token/[chain
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="mb-4">
-        <Suspense fallback={<Card><div className="px-4 py-6 text-sm text-fg-faint"><span className="cursor">Running pre-buy check</span></div></Card>}>
-          <DecisionCard
-            userId={user.id}
-            t={{ chain: t.chain, address: t.address, is_demo: t.is_demo }}
-            input={{
-              priceUsd: t.price_usd,
-              change: { m5: t.price_change_m5, h1: t.price_change_h1, h6: t.price_change_h6, h24: t.price_change_h24 },
-              liquidityUsd: t.liquidity_usd,
-              marketCapUsd: t.market_cap ?? t.fdv,
-              ageHours: t.pair_created_at ? (Date.now() - new Date(t.pair_created_at).getTime()) / 3_600_000 : null,
-              onBondingCurve: CURVE_DEXES.includes(primary?.dex_id ?? ""),
-              buysH1: t.buys_h1,
-              sellsH1: t.sells_h1,
-              security: sec ? { riskLevel: sec.status === "unavailable" || sec.status === "error" ? null : sec.risk_level, failedChecks: failedCheckLabels(sec.checks), warnings: warnCheckLabels(sec.checks) } : null,
-            }}
-          />
-        </Suspense>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">

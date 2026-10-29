@@ -75,7 +75,7 @@ export function AppShell({ user, unread, demoMode, children }: { user: ShellUser
 
       {/* Phone: the four features and Alerts as a bottom tab bar. */}
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink-950/95 backdrop-blur lg:hidden">
-        <ul className="grid grid-cols-5">
+        <ul className="grid grid-cols-4">
           {main.map((n) => (
             <li key={n.href}>
               <Link

@@ -15,7 +15,7 @@ const ORDER: RiskLevel[] = ["low", "moderate", "high", "critical"];
 
 /**
  * Pure: did the risk rise into high or critical? The first check of a coin has nothing to compare with, so it never
- * alerts: the alert is about a coin turning risky, and its Coin Check already shows a coin that was risky from the start.
+ * alerts: the alert is about a coin turning risky, not about a coin that was risky from the start.
  */
 export function riskRoseToAlert(prev: RiskLevel | null, next: RiskLevel): boolean {
   if (prev === null || (next !== "high" && next !== "critical")) return false;
@@ -23,10 +23,9 @@ export function riskRoseToAlert(prev: RiskLevel | null, next: RiskLevel): boolea
 }
 
 /**
- * Re-runs the full Coin Check (sell simulation, holders, insiders, trading) on coins that are on the watchlist of
+ * Re-runs the full risk check (sell simulation, holders, insiders, trading) on coins that are on the watchlist of
  * someone with an active watchlist risk alert, and records the overall risk. The alert engine reads the result
- * (see `watchlist_risk` in ./engine). Budgeted by the investigation's own platform-wide limit; nobody's personal
- * Coin Check allowance is used.
+ * (see `watchlist_risk` in ./engine). Budgeted by the investigation's own platform-wide limit.
  */
 export async function recheckWatchedCoins(): Promise<{ checked: number }> {
   if (env.demoMode) return { checked: 0 };

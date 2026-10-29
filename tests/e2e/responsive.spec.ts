@@ -25,7 +25,7 @@ test("signed-in pages fit a phone, with the features in a bottom tab bar", async
   await Promise.race([page.waitForURL(/\/app/), cont.waitFor()]);
   if (await cont.isVisible().catch(() => false)) await cont.click();
   await page.waitForURL(/\/app/);
-  for (const path of ["/app", "/app/check", "/app/smart-dev", "/app/alerts"]) {
+  for (const path of ["/app", "/app/smart-dev", "/app/smart-money", "/app/alerts"]) {
     await page.goto(path, { waitUntil: "networkidle" });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, path).toBeLessThanOrEqual(1);
@@ -33,5 +33,5 @@ test("signed-in pages fit a phone, with the features in a bottom tab bar", async
   // No sidebar on a phone: the features are in a tab bar at the bottom.
   const tabs = page.getByRole("navigation", { name: "Main" }).last();
   await expect(tabs).toBeVisible();
-  for (const label of ["Early", "Check", "Devs", "Wallets", "Alerts"]) await expect(tabs.getByRole("link", { name: label })).toBeVisible();
+  for (const label of ["Early", "Devs", "Wallets", "Alerts"]) await expect(tabs.getByRole("link", { name: label })).toBeVisible();
 });

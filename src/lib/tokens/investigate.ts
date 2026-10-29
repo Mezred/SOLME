@@ -13,7 +13,7 @@ import { POOL_AUTHORITIES } from "./pools";
 const log = logger("investigate");
 
 /**
- * Coin Check's deeper investigation of a Solana token, beyond the contract and holder snapshot:
+ * The risk check's deeper investigation of a Solana token (used by alerts and the watchlist re-check), beyond the contract and holder snapshot:
  *  A. Sell simulation: Jupiter's best route for a SELL_USD sell, built for a wallet that really holds the coin and
  *     simulated on-chain (never sent). Shows whether selling works, the real price impact and any hidden tax.
  *  B. Connected holders: each top holder's first funder (cached for good), grouped: wallets funded by the dev or

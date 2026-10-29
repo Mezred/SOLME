@@ -14,7 +14,7 @@ export interface AlertPreset {
   /** What the plan must include: smart-wallet data (Elite), wallet alerts (Pro+), or a launchpad chain. */
   needs: "smart_money" | "wallets" | "launchpad" | "early" | null;
   /** The feature it belongs to, for grouping on the Alerts page. */
-  feature: "early" | "check" | "devs" | "wallets";
+  feature: "early" | "watchlist" | "devs" | "wallets";
 }
 
 export const ALERT_PRESETS: AlertPreset[] = [
@@ -43,7 +43,7 @@ export const ALERT_PRESETS: AlertPreset[] = [
     rule_type: "watchlist_risk",
     params: { liquidity_drop_pct: 30 },
     needs: null,
-    feature: "check",
+    feature: "watchlist",
   },
   {
     key: "smart_buy",

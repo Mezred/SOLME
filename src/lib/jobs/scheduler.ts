@@ -65,7 +65,7 @@ export const handlers: Record<string, JobHandler> = {
   "early.buyers": async () => {
     if (!env.demoMode) await sampleEarlyBuyers();
   },
-  // The full Coin Check on watched coins, for the watchlist risk alert (credit-bounded).
+  // The full risk check on watched coins, for the watchlist risk alert (credit-bounded).
   "watchlist.recheck": async () => {
     if (!env.demoMode) await recheckWatchedCoins();
   },

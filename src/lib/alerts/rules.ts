@@ -100,7 +100,7 @@ export function describeAlertParams(type: string, p: Record<string, unknown>): s
     case "curve_progress": return `curve ≥ ${n("min_progress")}%${n("min_dev_score") > 0 ? ` · dev score ≥ ${n("min_dev_score")}` : " · any dev"}`;
     case "screener_match": return "a new coin matches the saved filters";
     case "early_coin": return `${p.min_class === "building" ? "Building Momentum" : "Early Activity or better"}${p.contract_ok ? " · contract checked OK" : ""}${n("min_liquidity") > 0 ? ` · liquidity ≥ $${n("min_liquidity").toLocaleString("en-US")}` : ""}${n("min_smart_wallets") > 0 ? ` · ${n("min_smart_wallets")}+ smart wallets` : ""}${n("max_per_hour") > 0 ? ` · at most ${n("max_per_hour")}/hour` : ""}`;
-    case "watchlist_risk": return `Coin Check risk rises to high/critical, or liquidity −${n("liquidity_drop_pct")}% in 1h`;
+    case "watchlist_risk": return `full risk check rises to high/critical, or liquidity −${n("liquidity_drop_pct")}% in 1h`;
     case "smart_group_buy": return `${n("min_wallets")}+ wallets scoring ${n("min_wallet_score")}+ within ${n("window_minutes")} min`;
     case "smart_wallet_buy": return `${p.followed_only ? "followed wallets" : `wallet score ≥ ${n("min_wallet_score")}`}${n("min_buy_sol") > 0 ? ` · buy ≥ ${n("min_buy_sol")} SOL` : ""}${p.pass_check ? " · scam check passed" : ""}`;
     default: return Object.entries(p).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join("/") : v}`).join(" · ") || "any";

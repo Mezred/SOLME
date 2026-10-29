@@ -62,7 +62,7 @@ export default async function EarlyCoinsPage({ searchParams }: PageProps<"/app">
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div className="text-sm">
                 <span className={telegramOn ? "text-pos" : "text-fg"}>{telegramOn ? "✓" : "1."} Connect Telegram</span>
-                <span className="block text-xs text-fg-faint">Alerts with the contract to copy and mute buttons. Send the bot any contract for a Coin Check.</span>
+                <span className="block text-xs text-fg-faint">Alerts with the contract to copy and mute buttons.</span>
               </div>
               {telegramOn ? <span className="text-xs text-pos">Connected</span> : telegramAllowed ? <TelegramConnect /> : <Link href="/app/billing" className="text-xs text-up hover:underline">Telegram alerts are on Pro →</Link>}
             </li>

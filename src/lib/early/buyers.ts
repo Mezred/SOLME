@@ -18,7 +18,7 @@ const REFRESH_MINUTES = WALLETS_MAX_AGE_MINUTES - 10;
 /**
  * Counts unique buyers for the coins at the top of Early Coins from their latest ~100 pool trades: market data
  * providers report buy transactions only, which bots inflate. High Risk coins are skipped (no buyer count changes
- * that), as are coins sampled recently by this job or by a Coin Check.
+ * that), as are coins sampled recently by this job or by a risk check.
  */
 export async function sampleEarlyBuyers(): Promise<{ sampled: number }> {
   if (!integrations.helius) return { sampled: 0 };

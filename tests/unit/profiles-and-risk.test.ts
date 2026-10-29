@@ -3,7 +3,7 @@ import { decide, type DecisionInput } from "@/lib/decision/verdict";
 import { devReputation, launchOutcome } from "@/lib/devs/profile";
 import { copyAfterCosts, performanceConfidence, walletBehaviour, walletRisks, type WalletFacts } from "@/lib/wallets/profile";
 
-describe("Coin Check overall risk", () => {
+describe("overall risk (shared risk engine)", () => {
   const base: DecisionInput = {
     priceUsd: 0.001, change: { m5: 1, h1: 20, h6: 50, h24: 100 }, liquidityUsd: 60_000, marketCapUsd: 500_000, ageHours: 4,
     buysH1: 300, sellsH1: 250, security: { riskLevel: "low", failedChecks: [], warnings: [] },

@@ -176,7 +176,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
           ["Contract", c.check === "ok" ? "checked, no critical issue" : c.check === "risk" ? "risk found" : "not checked yet"],
           ...c.flags.filter((f) => f.level === "caution" && f.key !== "unchecked").slice(0, 1).map((f) => ["Caution", f.text] as [string, string]),
         ],
-        note: "Describes what is happening now, not a prediction. Send the contract to the bot for a full Coin Check.",
+        note: "Describes what is happening now, not a prediction. Open the coin for its contract security and holders.",
       },
     }));
     if (!primed) return triggers;
@@ -213,7 +213,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
     );
     const out: Trigger[] = [];
     const window = Math.floor(Date.now() / (6 * 3_600_000));
-    // The full Coin Check, re-run in the background (./watch-checks): the overall risk rising into high or critical.
+    // The full risk check, re-run in the background (./watch-checks): the overall risk rising into high or critical.
     const full = await query<{ id: string; symbol: string; chain: string; address: string; risk: RiskLevel; prev_risk: RiskLevel | null; findings: { label: string; detail: string }[]; changed_at: Date }>(
       `SELECT DISTINCT t.id, t.symbol, t.chain, t.address, rc.risk, rc.prev_risk, rc.findings, rc.changed_at
          FROM watchlist_items wi JOIN token_assets t ON t.id = wi.token_id JOIN token_risk_checks rc ON rc.token_id = t.id
@@ -226,15 +226,15 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
       out.push({
         dedupKey: `wfull:${r.id}:${r.risk}:${new Date(r.changed_at).getTime()}`,
         link: `/app/token/${r.chain}/${r.id}`,
-        title: `${r.symbol}: Coin Check risk now ${label}`,
-        body: `The full Coin Check on ${r.symbol} (on your watchlist) went from ${RISK_TEXT[r.prev_risk!].label} to ${label} risk. ${r.findings.slice(0, 3).map((f) => `${f.label}: ${f.detail}`).join(". ")}.`,
+        title: `${r.symbol}: risk now ${label}`,
+        body: `The full risk check on ${r.symbol} (on your watchlist) went from ${RISK_TEXT[r.prev_risk!].label} to ${label} risk. ${r.findings.slice(0, 3).map((f) => `${f.label}: ${f.detail}`).join(". ")}.`,
         payload: { risk: r.risk, prev: r.prev_risk },
         card: {
           icon: r.risk === "critical" ? "⛔" : "🟠",
           headline: `Watchlist: risk ${RISK_TEXT[r.prev_risk!].label} → ${label}`,
           symbol: r.symbol, chain: r.chain, address: r.address,
           facts: r.findings.slice(0, 3).map((f) => [f.label, f.detail] as [string, string]),
-          note: "From a fresh full Coin Check (sell test, holders, insiders, trading). Open it for every finding.",
+          note: "From a fresh full risk check (sell test, holders, insiders, trading). Open the coin for its contract security and holders.",
         },
       });
     }
@@ -246,9 +246,9 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
           dedupKey: `wrisk:${r.id}:${r.risk_level}`,
           link,
           title: `${r.symbol}: contract risk now ${r.risk_level}`,
-          body: `A new contract check on ${r.symbol} (on your watchlist) found ${r.risk_level} risk. Open its Coin Check for the findings.`,
+          body: `A new contract check on ${r.symbol} (on your watchlist) found ${r.risk_level} risk. Open the coin for the contract findings.`,
           payload: { risk: r.risk_level },
-          card: { icon: "⚠️", headline: `Watchlist: contract risk ${r.risk_level}`, ...coin, facts: [["Checked", new Date(r.checked_at).toISOString().slice(11, 16) + " UTC"]], note: "Open the Coin Check to see what changed." },
+          card: { icon: "⚠️", headline: `Watchlist: contract risk ${r.risk_level}`, ...coin, facts: [["Checked", new Date(r.checked_at).toISOString().slice(11, 16) + " UTC"]], note: "Open the coin to see the contract findings." },
         });
       }
       const fresh = r.captured_at && Date.now() - new Date(r.captured_at).getTime() < 30 * 60_000;
@@ -334,7 +334,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
           chain: r.chain,
           address: r.token_address,
           facts,
-          note: r.direction === "buy" ? "Not checked for scams: send the contract to the bot before you copy." : undefined,
+          note: r.direction === "buy" ? "Not checked for scams: look at the coin's contract security and holders before you copy." : undefined,
           replyTo: r.direction === "sell" && r.token_address ? r.token_address : undefined,
           mute,
         },
@@ -398,7 +398,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
             ["1h / 6h / 24h", `${fmtPct(r.price_change_h1)} / ${fmtPct(r.price_change_h6)} / ${fmtPct(r.price_change_h24)}`],
             ["Pair age", r.pair_created_at ? formatAge(r.pair_created_at) : "n/a"],
           ] as [string, string][],
-          note: "Matching your filters is not a safety check: send the contract to the bot or open Check a coin.",
+          note: "Matching your filters is not a safety check: look at the coin's contract security and holders first.",
         },
       };
     });
@@ -500,7 +500,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
     );
     return rows.map((r) => ({
       dedupKey: `curve:${r.mint}`,
-      link: `/app/check?q=${encodeURIComponent(r.mint)}`,
+      link: `/app/token/solana/${r.mint}`,
       title: `${r.symbol ?? r.mint.slice(0, 6)} bonding curve ${Math.round(r.progress * 100)}%`,
       body: `${launchpadName(r.pool)} · market cap ${r.market_cap_usd !== null ? `$${fmt(r.market_cap_usd)}` : "n/a"} · dev score ${r.dev_score ?? "none"}. Mint ${r.mint}.`,
       payload: { mint: r.mint, progress: r.progress },
@@ -640,7 +640,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
       return {
         // Once per coin per day, however many more wallets join.
         dedupKey: `grp:${r.token_address}:${day}`,
-        link: `/app/check?q=${encodeURIComponent(r.token_address)}`,
+        link: `/app/token/solana/${r.token_address}`,
         title: `${r.wallets} smart wallets bought ${name} within ${span} min`,
         body: `${r.wallets} wallets scoring ${Number(p.min_wallet_score)}+ bought ${name}${r.sol !== null ? `, ${fmt(Number(r.sol))} SOL in total` : ""}. Check the coin before buying. Research, not advice.`,
         payload: { mint: r.token_address, wallets: r.wallets },
@@ -655,7 +655,7 @@ async function evaluateRule(rule: Rule): Promise<Trigger[]> {
             ...(r.sol !== null ? [["Total spent", `${fmt(Number(r.sol))} SOL`] as [string, string]] : []),
             ["Within", `${span} min`],
           ],
-          note: "Send the contract to the bot for the scam check before you buy.",
+          note: "Not checked for scams yet: look at the coin's contract security and holders before you buy.",
         },
       };
     });

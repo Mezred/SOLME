@@ -74,7 +74,7 @@ export function EarlyCard({ c }: { c: EarlyCoin }) {
       <div className="mt-auto border-t border-line px-4 py-2.5 pt-2.5 text-xs">
         <div className="mt-1 flex items-center justify-between gap-2">
           <span className={cx("flex items-center gap-1.5", check.cls)}><span aria-hidden="true" className="font-bold">{check.icon}</span>{check.text}</span>
-          <Link href={`/app/token/${c.chain}/${c.id}`} className="shrink-0 text-up hover:underline" title="The full check: sell test, holders, insiders, trading">Full Coin Check →</Link>
+          <Link href={`/app/token/${c.chain}/${c.id}`} className="shrink-0 text-up hover:underline" title="Chart, contract security and holders">Open coin →</Link>
         </div>
         <div className="mt-1 text-[11px] text-fg-faint">
           Updated {timeAgo(c.updatedAt)} · {c.missing.length ? `partial data: no ${c.missing.join(", no ")}` : "data complete"}

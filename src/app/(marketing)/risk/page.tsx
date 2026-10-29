@@ -8,7 +8,7 @@ export default function RiskPage() {
     <LegalPage title="Risk Disclaimer" updated="October 26, 2026">
       <p><strong>Crypto assets are highly volatile and speculative. You can lose all of the money you put into them.</strong></p>
       <h2>Research, not advice</h2>
-      <p>SOLME provides informational research tools: market data, deterministic scores, pre-buy checks, security checks and wallet activity. Nothing on SOLME is financial, investment, legal or tax advice, a recommendation to buy or sell any asset, or a guarantee of any outcome. You are solely responsible for your decisions.</p>
+      <p>SOLME provides informational research tools: market data, deterministic scores, security checks and wallet activity. Nothing on SOLME is financial, investment, legal or tax advice, a recommendation to buy or sell any asset, or a guarantee of any outcome. You are solely responsible for your decisions.</p>
       <h2>No promised performance</h2>
       <p>We do not promise any win rate, return or profit. Past behaviour of a token, wallet or dev does not predict future results.</p>
       <h2>Data limitations</h2>

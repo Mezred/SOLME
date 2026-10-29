@@ -138,7 +138,7 @@ describe("Early Coins feed and alerts", () => {
     const titles = (await db.query<{ title: string }>("SELECT n.title FROM notifications n JOIN alert_events e ON e.id = n.alert_event_id WHERE e.rule_id = $1", [rule])).map((r) => r.title);
     expect(titles).toEqual(["WATCHED: liquidity down 67% in ~1h"]);
 
-    // The background full Coin Check: the first result is the baseline, a rise to High alerts once.
+    // The background full risk check: the first result is the baseline, a rise to High alerts once.
     const findings = [{ label: "Insiders", detail: "4 wallets share a funder, 31%", status: "fail" }];
     await recordRisk(id, "moderate", findings);
     await evaluateAlerts();
@@ -146,7 +146,7 @@ describe("Early Coins feed and alerts", () => {
     await evaluateAlerts();
     await evaluateAlerts();
     const after = (await db.query<{ title: string }>("SELECT n.title FROM notifications n JOIN alert_events e ON e.id = n.alert_event_id WHERE e.rule_id = $1 ORDER BY n.created_at", [rule])).map((r) => r.title);
-    expect(after).toEqual(["WATCHED: liquidity down 67% in ~1h", "WATCHED: Coin Check risk now High"]);
+    expect(after).toEqual(["WATCHED: liquidity down 67% in ~1h", "WATCHED: risk now High"]);
   });
 
   it("an Early Coins alert respects its smart-wallet minimum and hourly limit", async () => {

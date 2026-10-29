@@ -3,7 +3,6 @@ import { getEntitlements } from "@/lib/billing/entitlements";
 import { query, queryOne } from "@/lib/db";
 import { env } from "@/lib/env";
 import { errorMessage, logger } from "@/lib/log";
-import { extractAddress, telegramCheckReply } from "./telegram-check";
 import { parseMuteData, type TgButton } from "./telegram-format";
 
 const log = logger("telegram");
@@ -110,6 +109,12 @@ async function listMutes(userId: string): Promise<string> {
 
 const OFFSET_KEY = "telegram_updates_offset";
 
+/** First Solana contract address in a message: a bare address or one inside a link (pump.fun/coin/<mint>, explorer URLs…). */
+export function extractAddress(text: string): string | null {
+  const m = text.match(/(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/);
+  return m ? m[0] : null;
+}
+
 async function handleMessage(chatId: string, text: string) {
   const [command, arg] = text.trim().split(/\s+/, 2);
   if (command === "/start" && arg) {
@@ -121,25 +126,17 @@ async function handleMessage(chatId: string, text: string) {
       await sendTelegram(
         chatId,
         allowed
-          ? "✅ Connected to SOLME. Your alerts will arrive here. Send a contract address any time to check a coin, or /stop to pause alerts."
+          ? "✅ Connected to SOLME. Your alerts will arrive here. /stop pauses them."
           : "✅ Connected to SOLME. Telegram alerts need the Pro plan; upgrade in Billing to receive them here.",
       );
       return;
     }
   }
   const linked = await queryOne<{ user_id: string }>("SELECT user_id FROM profiles WHERE telegram_chat_id = $1", [chatId]);
-  if (linked && extractAddress(text)) {
-    // A full check takes a few seconds: answer at once, then replace that message with the result.
-    const pendingId = await sendTelegramHtml(chatId, "🔎 Checking…");
-    let reply;
-    try {
-      reply = await telegramCheckReply(linked.user_id, text);
-    } catch (err) {
-      log.warn("Telegram check failed", { error: errorMessage(err) });
-      reply = { text: "Something went wrong while checking this coin. Try again in a minute.", buttons: [] };
-    }
-    if (reply && pendingId) await editTelegramHtml(chatId, pendingId, reply.text, reply.buttons);
-    else if (reply) await sendTelegramHtml(chatId, reply.text, reply.buttons);
+  const address = linked ? extractAddress(text) : null;
+  if (address) {
+    // The bot no longer checks coins: point to the coin's page (chart, contract security, holders) instead.
+    await sendTelegram(chatId, `This bot sends your SOLME alerts; it doesn't check coins. Open the coin on SOLME:\n${env.appUrl}/app/token/solana/${address}`);
     return;
   }
   if (command === "/mutes" && linked) {
@@ -159,7 +156,7 @@ async function handleMessage(chatId: string, text: string) {
   await sendTelegram(
     chatId,
     linked
-      ? "This chat is connected to SOLME. Alerts arrive here.\n\nSend a contract address (or a pump.fun link) to check a coin: Tradeable, Watch or Avoid, with the reasons. /stop pauses alerts."
+      ? "This chat is connected to SOLME. Alerts arrive here.\n\n/mutes lists muted coins and devs, /unmute clears them, /stop pauses alerts."
       : "To get SOLME alerts here, open SOLME → Account Settings and click Connect Telegram. The link expires after 15 minutes.",
   );
 }

@@ -2,10 +2,9 @@
 
 Solana memecoin intelligence that a beginner can read in seconds and an experienced trader can verify.
 
-SOLME is four features plus Alerts:
+SOLME is three features plus Alerts:
 
 - **Early Coins** (home): fresh coins where real activity is starting, and why each one is there.
-- **Coin Check**: a coin's risk in plain words (Low / Moderate / High / Critical), with the evidence behind it.
 - **Proven Devs**: who launched a coin, and what their earlier coins did.
 - **Smart Wallets**: wallets with a strong record, and what copying them would actually have returned.
 - **Alerts**: one place for every alert, on Telegram, by email or in-app.
@@ -18,7 +17,7 @@ Subscriptions are paid with USDC or SOL through Solana Pay (prepaid, no card on 
 
 - [The product](#the-product)
 - [Early Coins](#early-coins)
-- [Coin Check](#coin-check)
+- [Coin pages and the risk engine](#coin-pages-and-the-risk-engine)
 - [Proven Devs](#proven-devs)
 - [Smart Wallets](#smart-wallets)
 - [Followed wallets and Watchlist](#followed-wallets-and-watchlist)
@@ -42,8 +41,7 @@ Subscriptions are paid with USDC or SOL through Solana Pay (prepaid, no card on 
 | Where | What it is |
 |---|---|
 | `/app` | **Early Coins**, the home page |
-| `/app/check` | **Coin Check**: paste any Solana contract |
-| `/app/token/solana/<id>` | A coin's page with its full Coin Check |
+| `/app/token/solana/<id or contract>` | A coin's page: chart, market data, contract security, holders |
 | `/app/smart-dev` | **Proven Devs**: live launches and the developer leaderboard |
 | `/app/smart-dev/<creator>` | A developer's profile |
 | `/app/smart-money` | **Smart Wallets**: the list and their recent buys |
@@ -54,14 +52,14 @@ Subscriptions are paid with USDC or SOL through Solana Pay (prepaid, no card on 
 | `/admin` | Admin panel (admins only) |
 
 **Layout**
-- Desktop: a left sidebar with the four features and Alerts, with Watchlist, Followed wallets, Billing and Settings underneath.
+- Desktop: a left sidebar with the three features and Alerts, with Watchlist, Followed wallets, Billing and Settings underneath.
 - Phone: a bottom tab bar.
 
 **Colours**
 - Purple is the brand accent.
 - Status always pairs colour with an icon or label: green ✓ positive, amber ⚠ caution, red ✗ critical.
 
-`/app/screener` redirects to Early Coins: the Screener is no longer part of the product.
+**Removed features.** The Screener and Coin Check are no longer part of the product. `/app/screener` and `/app/check` redirect to Early Coins; an old `/app/check?q=<contract>` link opens that coin's page.
 
 ## Early Coins
 
@@ -97,7 +95,7 @@ Activity is always measured against the coin's own average hour over the last 6 
 
 Price is a small signal and never ranks a coin on its own.
 
-**Unique buyers.** Market data providers only report buy *transactions*, which bots inflate. For the top coins, SOLME reads the latest ~100 trades on the coin's pool every few minutes and counts the different wallets that bought. Dust-only buyers (under $2, typical of volume bots) don't count. When a busy sample comes from 5 wallets or fewer, the transaction signals are dropped and the card says "Only N wallets bought across the last M trades". A Coin Check updates the count too.
+**Unique buyers.** Market data providers only report buy *transactions*, which bots inflate. For the top coins, SOLME reads the latest ~100 trades on the coin's pool every few minutes and counts the different wallets that bought. Dust-only buyers (under $2, typical of volume bots) don't count. When a busy sample comes from 5 wallets or fewer, the transaction signals are dropped and the card says "Only N wallets bought across the last M trades". A risk check (run for alerts) updates the count too.
 
 **Critical flags (High Risk)**
 - The contract check is high or critical risk.
@@ -117,68 +115,41 @@ Price is a small signal and never ranks a coin on its own.
 - its flags and contract-scan status ("no critical issue", never "safe");
 - when it was updated, and what couldn't be measured.
 
-A link opens the full Coin Check. Free shows 5 coins; Pro and Elite show all.
+A link opens the coin's page. Free shows 5 coins; Pro and Elite show all.
 
-## Coin Check
+## Coin pages and the risk engine
 
-Paste any Solana contract (pump.fun, LetsBonk or any Solana DEX) on `/app/check`, open a coin's page, or send the contract to the Telegram bot.
+**Coin pages** (`/app/token/solana/<id>`, opened from Early Coins, alerts, the watchlist, Proven Devs and Smart Wallets) show the chart and market data, the contract security report, holder concentration (top 10, dev, launch-block buyers, snipers), and the smart wallets that bought early. A link can also use the contract address (`/app/token/solana/<contract>`): SOLME resolves it to the coin, fetching it from providers if it isn't tracked yet (rate-limited per user).
 
-**The result**
+**The risk engine** (formerly behind Coin Check) is no longer a page of its own, but alerts still use it:
+- "Only buys that pass the scam check" on smart-wallet and followed-wallet alerts.
+- The **watchlist risk re-check** (see [Alerts](#alerts)).
 
-1. **Overall risk: Low, Moderate, High or Critical.**
+It rates a coin Low, Moderate, High or Critical from five areas:
+- a sell simulated on-chain through Jupiter (never sent);
+- liquidity depth and exit cost;
+- contract control (authorities, transfer hooks and fees);
+- insiders (top holders traced to their funders, bundles, snipers, dev sales);
+- trading patterns (volume bots, wallets trading in circles).
 
-   | Level | When |
-   |---|---|
-   | Critical | Any failure in selling, transfers, the contract, liquidity, the pool or the exit. |
-   | High | Any other failure, 3+ warnings, or an active dump. |
-   | Moderate | Warnings or missing checks. |
-   | Low | Nothing found. Low is never presented as safe. |
-
-2. **The top 3 findings** that matter most.
-3. **Five plain questions**, each expandable with its checks:
-   - **Can I sell it?**
-     - A real sell of about $500 is simulated on-chain through Jupiter (never sent) from a real holder's wallet.
-     - It reports the proceeds against the quote, any hidden tax, and blocked or frozen transfers.
-     - A route problem specific to one holder retries with another holder.
-     - A slippage failure is retried with a fresh quote at 30% before it counts as a trap.
-   - **Is the liquidity real?**
-     - Pool depth in real quote assets (SOL, USDC, USDT), how much a $500 sell moves the price, and market cap against liquidity.
-     - Liquidity under $5k fails; under $15k is thin.
-     - Exit impact warns at 6% and fails at 15%. Market cap above 25× liquidity warns.
-   - **Who controls it?**
-     - Mint and freeze authority, transfer hooks and fees, and LP status.
-     - Top holder concentration. Pool vaults are excluded so they never count as holders.
-   - **Are insiders set to dump?**
-     - The top 15 holders are traced to their funders. Wallets funded together are grouped; exchanges and known hubs are ignored.
-     - Fresh wallets, the share held by the bundle, snipers, the developer's record, and whether the dev has sold.
-     - A dev sale of 3%+ in the first 2 hours fails; smaller sales warn.
-   - **Is the trading genuine?**
-     - The last 100 trades: volume bots (dust trades under $2), wallets trading in circles, and the buy/sell balance.
-4. **SOLME's read.** Whether a trade looks reasonable now, wait, or avoid, plus timing (for example "dumping"), the reasons to buy, what's missing, and what to watch if you buy.
-
-**Every finding is labelled:**
-- **confirmed**: read on-chain or simulated;
-- **inferred**: deduced from patterns (insiders, trading, dev sales);
-- **not available**: with the reason.
-
-Each shows when it was read.
-
-**Evidence links.** Under each finding, links open the evidence on Solscan:
-- the token (authorities, transfers) and its holders;
-- the pool and its trades (liquidity, exit cost, trading patterns);
-- the dev wallet and each recorded dev sale transaction;
-- the funder shared by a group of top holders;
-- the developer's SOLME profile.
-
-The sell test is a simulation that is never sent, so it has no transaction to link, and the card says so.
-
-**Limits and caching**
-- Investigations are cached for 5 minutes.
-- Each user can run 30 every 10 minutes, and the platform 150 an hour (this protects the Helius budget).
+Results are cached for 5 minutes, and the platform runs at most 150 an hour to protect the Helius budget.
 
 ## Proven Devs
 
 Live pump.fun and LetsBonk launches (via the PumpPortal stream), a leaderboard, and a profile for each developer.
+
+**Proven dev launches** (Elite) lists new coins from devs scoring 60+ with 2+ launches, newest first. Each launch reads in a few seconds.
+
+- **Verdict:**
+  - **Looks clear** (✓): the scam check passed and nothing stands out.
+  - **Caution** (!): a dev sale, a bundle holding 10%+, snipers holding 15%+, or 50%+ down from its peak.
+  - **Avoid** (✗): the scam check failed or couldn't verify the coin, the dev sold 5%+, a bundle holds 20%+, or snipers hold 30%+.
+  - **Checking** (…): the scam check is still running, in the first minutes after launch.
+  - **Not checked** (?): no check result came.
+- **Problems** are listed worst first, each on its own line. The neutral facts share one line: dev record, check result, bundle, snipers, and what the dev bought.
+- **At a glance:** age (with a *New* tag for the first 10 minutes), launchpad, market cap, and bonding curve progress or "Migrated".
+- **Actions on every row:** copy the contract, Trade on GMGN (hidden on Avoid), open on pump.fun/LetsBonk, the coin page, and the dev's profile.
+- **Filters:** last 1h / 6h / 24h, and All / Looks clear / Hide Avoid, with a count of each verdict. The page refreshes every 30 seconds.
 
 **Dev score (0–100)**
 - **80%** comes from a recency-weighted value per launch. A launch's weight halves every 30 days.
@@ -270,7 +241,7 @@ Alerts live in one place, grouped by feature. One-click presets cover the common
 |---|---|---|
 | Early Coins | A coin starts Building Momentum | Pro |
 | Early Coins | Any coin enters Early Coins with its contract checked OK | Free |
-| Coin Check | A coin on your watchlist turns risky (its full Coin Check rises to High or Critical, a high/critical contract result, or liquidity down 30%+ in about an hour) | Free |
+| Watchlist | A coin on your watchlist turns risky (its full risk check rises to High or Critical, a high/critical contract result, or liquidity down 30%+ in about an hour) | Free |
 | Proven Devs | A proven dev launches a new coin | Free |
 | Smart Wallets | A smart wallet buys a coin that passes the scam check | Elite |
 | Smart Wallets | 3+ smart wallets buy the same coin within 10 minutes | Elite |
@@ -279,7 +250,7 @@ Alerts live in one place, grouped by feature. One-click presets cover the common
 
 **Early Coins and watchlist risk alerts can be tuned** in the New alert form:
 - Early Coins: the class (Building Momentum, or Early Activity or better), minimum liquidity, minimum number of smart wallets that bought, contract checked OK only, and **at most N alerts per hour** for that rule. Coins over the limit alert later if they are still in the feed.
-- Watchlist risk: the liquidity drop that counts. SOLME also **re-runs the full Coin Check** on watched coins about every 30 minutes (sell test, holders, insiders, trading). It alerts once when the overall risk rises to High or Critical, with the findings that changed it.
+- Watchlist risk: the liquidity drop that counts. SOLME also **re-runs the full risk check** on watched coins about every 30 minutes (sell test, holders, insiders, trading). It alerts once when the overall risk rises to High or Critical, with the findings that changed it.
 
 **Custom rules** are also available: price above/below, price move %, volume spike, liquidity drop, security warning, bonding curve progress, and saved screener templates (existing rules keep working).
 
@@ -292,14 +263,14 @@ Alerts live in one place, grouped by feature. One-click presets cover the common
 
 **Telegram bot**
 - Link it from Settings.
-- Send it any Solana contract to get a Coin Check card: the risk level, the five questions, the reasons to buy and SOLME's read.
+- It delivers alerts with mute buttons, and understands `/mutes`, `/unmute` and `/stop`.
+- A contract sent to it gets a link to that coin's page; the bot no longer checks coins.
 
 ## Plans and billing
 
 | | Free | Pro | Elite |
 |---|---|---|---|
 | Price | $0 | $29 / month or $290 / year | $79 / month or $790 / year |
-| Coin Check | Any coin | Any coin | Any coin |
 | Early Coins | 5 coins | All | All |
 | Alerts | 3, in-app | 25, Telegram & email | 100, Telegram & email |
 | Followed wallets | — | 5 | 100 |
@@ -332,12 +303,12 @@ Stripe card billing was removed (migration `0033`). Past card subscriptions are 
 | Provider | Used for | Key |
 |---|---|---|
 | Helius (RPC + websockets) | Holders, funders, transaction history, the sell simulation, pool trades (unique buyers, trading patterns), smart and followed wallets, live wallet balances, launch data, payment confirmation | `HELIUS_API_KEY` |
-| Jupiter (`lite-api.jup.ag`) | Sell quotes and swap transactions for the simulation | none |
+| Jupiter (`lite-api.jup.ag`) | Sell quotes and swap transactions for the risk engine's sell simulation | none |
 | PumpPortal stream | Live pump.fun and LetsBonk launches and migrations | none |
 | DexScreener | Pairs, prices, volume, transactions, liquidity, pools | none |
 | GeckoTerminal | Candles, trending and new pools | none |
 | GoPlus | Contract security checks | optional key for higher limits |
-| Telegram Bot API | Alerts and the Coin Check bot | `TELEGRAM_BOT_TOKEN` |
+| Telegram Bot API | Alerts and the bot | `TELEGRAM_BOT_TOKEN` |
 | Resend | Email | `RESEND_API_KEY` |
 
 ## Quick start (local)
@@ -417,10 +388,10 @@ All keys go in `.env.local`, which git ignores. **Never commit secrets.** For pa
 | `launchpad.checks.fast` / `launchpad.checks` | 15 s / 3 min | Launch scam checks on new coins |
 | `launchpad.curves` | 30 s | Bonding curve progress |
 | `launchpad.markets`, `launchpad.backfill` | 10 min | Migration outcomes, dev history |
-| `telegram.poll` | 15 s | The Telegram bot (linking, Coin Check, mute buttons) |
+| `telegram.poll` | 15 s | The Telegram bot (linking, commands, mute buttons) |
 | `billing.crypto` | 15 s | Confirms crypto payments; sends renewal reminders |
 | `early.buyers` | 5 min | Unique buyers for the top Early Coins (up to 8 coins a run, 60 an hour) |
-| `watchlist.recheck` | 10 min | Full Coin Check on watched coins with a watchlist risk alert (4 a run, each at most every 30 min) |
+| `watchlist.recheck` | 10 min | Full risk check on watched coins with a watchlist risk alert (4 a run, each at most every 30 min) |
 | `smartmoney.watch` | 90 s | New buys by watched smart wallets |
 | `wallets.sync` | 10 min | Followed wallets' history |
 | `wallets.score` | 15 min | Re-scores wallets |
@@ -457,7 +428,7 @@ After changing code under `src/lib` that the worker runs (alerts, wallets, launc
 | `src/app/api` | JSON API (auth, alerts, billing, settings, tokens, wallets, watchlists, admin, cron, health) |
 | `src/components` | UI: `app/` (product), `admin/`, `marketing/`, shared `ui.tsx` |
 | `src/lib/early` | Early Coins signals and classification (pure), the shared feed, the unique-buyer sampler |
-| `src/lib/decision` | The Coin Check verdict (pure rules), the evidence it reads, explorer links per finding |
+| `src/lib/decision` | The risk engine (pure rules) and the evidence it reads, used by alerts |
 | `src/lib/tokens` | Holder analysis and the investigation (sell simulation, connected holders, pool depth, trading patterns), pool addresses |
 | `src/lib/devs` | Developer profiles: reputation, launch outcomes, linked wallets |
 | `src/lib/launchpad` | pump.fun / LetsBonk stream, dev scores, launch checks |
@@ -479,7 +450,7 @@ After changing code under `src/lib` that the worker runs (alerts, wallets, launc
 - **Sessions:** passwords hashed with scrypt; random session tokens stored hashed; httpOnly SameSite cookies.
 - **Requests:** cross-origin mutations are rejected (CSRF), and inputs are validated with Zod.
 - **Database:** row-level security, with user queries running as the `nexalpha_app` role.
-- **Abuse protection:** rate limits on sign-in, search, Coin Check, checkout and account actions.
+- **Abuse protection:** rate limits on sign-in, search, coin lookups, checkout and account actions.
 - **Audit log:** admin actions, plan grants and account deletions are audited.
 - **Secrets and wallets:**
   - Secrets stay in environment variables, and `/api/health` reports features without exposing keys.
@@ -495,8 +466,8 @@ npm run lint && npm run typecheck && npm run build
 
 **Unit and integration tests cover:**
 - Early Coins classification, including unique buyers;
-- the Coin Check verdict and investigation, and its evidence links;
-- the Telegram cards;
+- the risk engine and its investigation;
+- the Telegram bot;
 - the alert engine (Early Coins limits, the watchlist risk re-check);
 - wallet scoring and profiles;
 - developer reputation;
@@ -509,6 +480,7 @@ npm run lint && npm run typecheck && npm run build
 - the sidebar and phone tab bar;
 - Alerts, Proven Devs and watchlists;
 - billing guards (no plan without an on-chain payment; the card routes are gone);
+- removed features: no Coin Check or Screener in the navigation, and their old routes redirect;
 - phone layouts.
 
 ## Deploying to production
@@ -525,8 +497,8 @@ The full checklist is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). In short:
 
 - **Early Coins**
   - Unique buyers come from a sample of the latest ~100 pool trades, and only for the top coins (Helius budget). Other coins fall back to buy transactions, and the card says the count is missing.
-  - Cards show the contract scan; the full Coin Check runs when you open a coin.
-- **Coin Check:** the list of exchange and hub wallets used to ignore shared funders is best-effort.
+  - Cards show the contract scan; the full risk check runs only for alerts.
+- **Risk engine:** the list of exchange and hub wallets used to ignore shared funders is best-effort.
 - **Smart Wallets:** "Holds now" values only tokens SOLME has a market price for.
 - **Alerts:** watched coins are fully re-checked about every 30 minutes, 4 per run, so a large set of watched coins takes longer to cycle through.
 - **Accessibility:** automated checks (axe-core) pass on the main pages; a manual screen-reader pass hasn't been done.

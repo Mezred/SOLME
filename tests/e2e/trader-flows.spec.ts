@@ -31,12 +31,13 @@ test.describe("everyday trader flows", () => {
     await signup(page);
   });
 
-  test("the sidebar holds the four features and Alerts; Early Coins is home", async ({ page }) => {
+  test("the sidebar holds the three features and Alerts; Early Coins is home", async ({ page }) => {
     const errors = await open(page, "/app");
     await expect(page.getByRole("heading", { level: 1, name: "Early Coins" })).toBeVisible();
     const nav = page.getByRole("navigation", { name: "Main" }).first();
-    for (const label of ["Early Coins", "Coin Check", "Proven Devs", "Smart Wallets", "Alerts"]) await expect(nav.getByRole("link", { name: label })).toBeVisible();
+    for (const label of ["Early Coins", "Proven Devs", "Smart Wallets", "Alerts"]) await expect(nav.getByRole("link", { name: label })).toBeVisible();
     await expect(page.getByRole("link", { name: "Screener" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Coin Check" })).toHaveCount(0);
     // Every coin view, and how the feed works, is one click away.
     for (const view of ["All active", "Building Momentum", "Early Activity", "High Risk"]) await expect(page.getByRole("link", { name: new RegExp(`^${view}`) })).toBeVisible();
     await expect(page.getByText("How Early Coins works")).toBeVisible();
@@ -50,6 +51,23 @@ test.describe("everyday trader flows", () => {
     expect(errors).toEqual([]);
   });
 
+  test("old Coin Check links land somewhere useful", async ({ page }) => {
+    await page.goto("/app/check", { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Early Coins" })).toBeVisible();
+    // A contract in the old link opens that coin's page (its address resolves to the tracked coin).
+    const coin = page.locator("main a[href^='/app/token/']").first();
+    if (!(await coin.count())) test.skip(true, "No coins in Early Coins yet");
+    const href = (await coin.getAttribute("href"))!;
+    await page.goto(href, { waitUntil: "networkidle" });
+    const mint = (await page.getByTitle("Copy contract address").first().textContent())!.trim();
+    expect(mint).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+    await page.goto(`/app/check?q=${mint}`, { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    // No Coin Check card on the coin page any more.
+    await expect(page.getByText("Coin Check", { exact: true })).toHaveCount(0);
+  });
+
   test("Proven Devs renders its launches and leaderboard", async ({ page }) => {
     const errors = await open(page, "/app/smart-dev");
     await expect(page.getByRole("heading", { level: 1, name: "Proven Devs" })).toBeVisible();
@@ -60,7 +78,8 @@ test.describe("everyday trader flows", () => {
 
   test("Alerts are grouped by feature and the Early Coins alert can be switched on", async ({ page }) => {
     const errors = await open(page, "/app/alerts");
-    for (const group of ["Early Coins", "Coin Check", "Proven Devs", "Smart Wallets"]) await expect(page.getByRole("heading", { level: 3, name: group })).toBeVisible();
+    for (const group of ["Early Coins", "Proven Devs", "Smart Wallets", "Watchlist"]) await expect(page.getByRole("heading", { level: 3, name: group })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Coin Check" })).toHaveCount(0);
     await expect(page.getByText("A coin on your watchlist turns risky")).toBeVisible();
     // Saved screener templates still work through the API (they back existing alerts).
     const saved = await page.request.post("/api/screener-templates", { data: { name: `E2E ${Date.now()}`, params: { maxAgeHours: "24" } }, headers: origin() });

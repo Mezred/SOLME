@@ -16,7 +16,6 @@ const CHAIN_LIST = CHAIN_IDS.map((c) => CHAINS[c].name).join(" · ");
 
 const FEATURES: { href: string; icon: ReactNode; title: string; body: string }[] = [
   { href: "/app", icon: Icons.chart, title: "Early Coins", body: "Fresh coins where real activity is starting, and why." },
-  { href: "/app/check", icon: Icons.shield, title: "Coin Check", body: "Paste a contract. See its risk in plain words." },
   { href: "/app/smart-dev", icon: Icons.rocket, title: "Proven Devs", body: "Who launched it, and what their last coins did." },
   { href: "/app/smart-money", icon: Icons.wallet, title: "Smart Wallets", body: "See what proven wallets are buying right now." },
   { href: "/app/alerts", icon: Icons.bell, title: "Alerts", body: "Get pinged on Telegram the moment it happens." },
@@ -59,7 +58,7 @@ export default async function HomePage() {
       </div>
 
       <Section id="features" eyebrow="Features" title="Five tools. No noise." className="scroll-mt-16">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f) => (
             <Link key={f.title} href={f.href} className="card group p-5 transition-colors hover:border-up/60">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-up/10 text-up">{f.icon}</span>

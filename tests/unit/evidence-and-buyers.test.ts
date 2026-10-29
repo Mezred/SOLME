@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { riskRoseToAlert } from "@/lib/alerts/watch-checks";
-import { evidenceLinks } from "@/lib/decision/links";
 import { classifyEarly, type EarlyFacts } from "@/lib/early/signals";
 
 const base: EarlyFacts = {
@@ -49,35 +48,6 @@ describe("Early Coins unique buyers", () => {
   it("does not count a slow sample (over 90 minutes) as a burst of buyers", () => {
     const r = classifyEarly({ ...base, wallets: { buyers: 60, trades: 100, spanMinutes: 300, ageMinutes: 4 } });
     expect(r.signals.map((s) => s.key)).not.toContain("wallets");
-  });
-});
-
-describe("Coin Check evidence links", () => {
-  const links = evidenceLinks({
-    mint: "MINT",
-    pair: "POOL",
-    dev: "DEV",
-    creator: "DEV",
-    devSells: [{ signature: "SIG1", pct: 4.2 }, { signature: "SIG2", pct: null }],
-    clusters: [{ funder: "FUNDER", wallets: 4 }],
-  });
-
-  it("links each finding to where it can be verified", () => {
-    expect(links.contract).toEqual([{ label: "Token on Solscan", href: "https://solscan.io/token/MINT", external: true }]);
-    expect(links.trading?.[0].href).toBe("https://solscan.io/account/POOL");
-    expect(links.devsold?.map((l) => [l.label, l.href])).toEqual([
-      ["Dev sale 1 (4.2%)", "https://solscan.io/tx/SIG1"],
-      ["Dev sale 2", "https://solscan.io/tx/SIG2"],
-    ]);
-    expect(links.insiders?.map((l) => l.label)).toEqual(["Shared funder (4 wallets)", "Dev wallet"]);
-    expect(links.devrecord).toEqual([{ label: "Developer profile", href: "/app/smart-dev/DEV", external: false }]);
-  });
-
-  it("never links the sell test (a simulation has no transaction) and omits what is unknown", () => {
-    expect(links.sell).toBeUndefined();
-    const bare = evidenceLinks({ mint: "M", pair: null, dev: null, creator: null, devSells: [], clusters: [] });
-    expect(bare.liquidity).toEqual([]);
-    expect(bare.devsold).toEqual([]);
   });
 });
 

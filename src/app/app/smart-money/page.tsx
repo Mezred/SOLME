@@ -110,7 +110,7 @@ export default async function SmartWalletsPage() {
                         {b.token_id ? (
                           <Link href={`/app/token/${b.chain}/${b.token_id}`} className="font-semibold hover:text-up">{b.symbol ?? shortAddress(b.token_address)}</Link>
                         ) : (
-                          <Link href={`/app/check?q=${b.token_address}`} className="font-semibold hover:text-up">{b.symbol ?? shortAddress(b.token_address)}</Link>
+                          <Link href={`/app/token/solana/${b.token_address}`} className="font-semibold hover:text-up">{b.symbol ?? shortAddress(b.token_address)}</Link>
                         )}
                         <ChainBadge chain={b.chain} />
                       </span>

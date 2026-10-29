@@ -4,7 +4,7 @@ import { Badge, Card } from "@/components/ui";
 import { FACTOR_DOCS, SCORING_VERSION } from "@/lib/scoring/engine";
 import { getSetting } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Scoring methodology", description: "Every factor, weight and rule behind SOLME scores and the pre-buy check." };
+export const metadata: Metadata = { title: "Scoring methodology", description: "Every factor, weight and rule behind SOLME scores." };
 export const dynamic = "force-dynamic";
 
 export default async function MethodologyPage() {

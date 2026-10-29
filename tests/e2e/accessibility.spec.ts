@@ -36,10 +36,10 @@ test.describe("accessibility (axe, WCAG 2.1 AA)", () => {
     test.setTimeout(180_000);
     await signup(page);
     const found: string[] = [];
-    for (const path of ["/app", "/app/check", "/app/smart-dev", "/app/smart-money", "/app/alerts", "/app/watchlist", "/app/wallets", "/app/billing", "/app/settings"]) {
+    for (const path of ["/app", "/app/smart-dev", "/app/smart-money", "/app/alerts", "/app/watchlist", "/app/wallets", "/app/billing", "/app/settings"]) {
       found.push(...(await audit(page, path)));
     }
-    // A coin page with its Coin Check, when Early Coins lists one.
+    // A coin page, when Early Coins lists one.
     await page.goto("/app", { waitUntil: "networkidle" });
     const coin = page.locator("main a[href^='/app/token/']").first();
     if (await coin.count()) {
